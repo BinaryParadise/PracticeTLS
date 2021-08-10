@@ -1,1 +1,0 @@
-openssl req -config test.local.conf -new -sha256 -newkey rsa:2048 -nodes -keyout test.local.key -x509 -days 365 -out test.local.crt

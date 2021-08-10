@@ -137,7 +137,9 @@ extension HTTPServer: GCDAsyncSocketDelegate {
     }
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
-        LogError("\(err)")
+        if let err = err {
+            LogError("\(err)")
+        }
         sessions.removeValue(forKey: sock.socket4FD())
     }
 }

@@ -35,7 +35,7 @@ public class TLSClientHello: TLSHandshakeMessage {
                         if let suite = CipherSuite(rawValue: item) {
                             cipherSuites.append(suite)
                         } else {
-                            print("\(String(format: "unsupport cipher suite: 0x%0X", item))")
+                            //print("\(String(format: "unsupport cipher suite: 0x%0X", item))")
                         }
                     } else {
                         break

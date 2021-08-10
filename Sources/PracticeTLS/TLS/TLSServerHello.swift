@@ -39,7 +39,7 @@ public class TLSServerHello: TLSHandshakeMessage {
             if let suite = CipherSuite(rawValue: cipher) {
                 cipherSuite = suite
             } else {
-                print("\(String(format: "unsupport cipher suite: 0x%0X", cipher))")
+                //print("\(String(format: "unsupport cipher suite: 0x%0X", cipher))")
             }
         }
         if let method = stream.readByte() {

@@ -33,9 +33,7 @@ s-->c: Certificate
 
 ## 参考资料
 
-[HTTPS 详解一：附带最精美详尽的 HTTPS 原理图](https://segmentfault.com/a/1190000021494676)
-
-[HTTPS详解二：SSL / TLS 工作原理和详细握手过程](https://segmentfault.com/a/1190000021559557)
+[图解 HTTPS：RSA 握手过程](https://zhuanlan.zhihu.com/p/344086342)
 
 [SSL/TLS协议详解](https://cshihong.github.io/2019/05/09/SSL%E5%8D%8F%E8%AE%AE%E8%AF%A6%E8%A7%A3/)
 

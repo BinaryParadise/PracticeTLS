@@ -19,9 +19,10 @@ public class TLSHandshakeMessage: TLSMessage {
             return nil
         }
         
-        if data.count > header.bodyLength + 9  {
-            return nil
-        }
+        //TODO:内容大小验证
+//        if data.count > header.bodyLength + 4  {
+//            return nil
+//        }
         var message: TLSHandshakeMessage?
         switch header.type {
         case .helloRequest:
@@ -41,6 +42,7 @@ public class TLSHandshakeMessage: TLSMessage {
         case .certificateVerify:
             break
         case .clientKeyExchange:
+            message = TLSClientKeyExchange(stream: DataStream(data))
             break
         case .finished:
             break

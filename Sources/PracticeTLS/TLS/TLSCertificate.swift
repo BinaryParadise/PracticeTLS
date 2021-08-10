@@ -7,6 +7,12 @@
 
 import Foundation
 
+extension Bundle {
+    class func certBundle() -> Bundle {
+        return Bundle(path: "\(Bundle(for: TLSCertificate.self).resourcePath ?? "")/PracticeTLSTool_PracticeTLS.bundle") ?? .main
+    }
+}
+
 public class TLSCertificate: TLSHandshakeMessage {
     var certData: Data = Data()
     var bodyLength: Int = 0
@@ -15,8 +21,7 @@ public class TLSCertificate: TLSHandshakeMessage {
         super.init()
         
         handshakeType = .certificate
-        let bundle = Bundle(path: "\(Bundle(for: Self.self).resourcePath ?? "")/PracticeTLSTool_PracticeTLS.bundle")
-        if let certPath = bundle?.path(forResource: "localhost.cer", ofType: nil) {
+        if let certPath = Bundle.certBundle().path(forResource: "Cert/localhost.cer", ofType: nil) {
             if let certData = try? Data(contentsOf: URL(fileURLWithPath: certPath)) {
                 self.certData = certData
                 contentLength = UInt16(certData.count + 4 + 3 + 3)
