@@ -19,8 +19,8 @@ public class TLSMessage: Streamable {
     }
     
     required init?(stream: DataStream) {
-        type = TLSMessageType(rawValue: stream.readByte()!)!
-        version = TLSVersion(rawValue: stream.readUInt16()!)
+        type = TLSMessageType(rawValue: stream.readByte()!) ?? .handeshake
+        version = TLSVersion(rawValue: stream.readUInt16() ?? 0x303)
         contentLength = stream.readUInt16() ?? 0
     }
     

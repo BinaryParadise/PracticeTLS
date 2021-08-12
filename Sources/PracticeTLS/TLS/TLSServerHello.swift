@@ -12,7 +12,8 @@ public class TLSServerHello: TLSHandshakeMessage {
     var clientVersion: TLSVersion = .V1_2
     var random: Random = Random()
     var sessionID: String?
-    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_CBC_SHA //必须选择客户端支持的加密套间
+    /// 必须选择客户端支持的加密套件，此处仅实现一种
+    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = [TLSExtension(type: .statusRequest, length: 0)]
     let extLen: UInt16 = 4

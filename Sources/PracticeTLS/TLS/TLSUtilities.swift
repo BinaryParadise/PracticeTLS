@@ -31,77 +31,101 @@ class Random: Equatable {
     }
 }
 
+public enum TLSError : Error
+{
+    case error(String)
+}
+
 enum CipherSuite: UInt16 {
-    case TLS_NULL_WITH_NULL_NULL                = 0x0000
-    case TLS_RSA_WITH_NULL_MD5                  = 0x0001
-    case TLS_RSA_WITH_NULL_SHA                  = 0x0002
-    case TLS_RSA_EXPORT_WITH_RC4_40_MD5         = 0x0003
-    case TLS_RSA_WITH_RC4_128_MD5               = 0x0004
-    case TLS_RSA_WITH_RC4_128_SHA               = 0x0005
-    case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5     = 0x0006
-    case TLS_RSA_WITH_IDEA_CBC_SHA              = 0x0007
-    case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA      = 0x0008
-    case TLS_RSA_WITH_DES_CBC_SHA               = 0x0009
-    case TLS_RSA_WITH_3DES_EDE_CBC_SHA          = 0x000A
-    case TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA   = 0x000B
-    case TLS_DH_DSS_WITH_DES_CBC_SHA            = 0x000C
-    case TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA       = 0x000D
-    case TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA   = 0x000E
-    case TLS_DH_RSA_WITH_DES_CBC_SHA            = 0x000F
-    case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA       = 0x0010
-    case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA  = 0x0011
-    case TLS_DHE_DSS_WITH_DES_CBC_SHA           = 0x0012
-    case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA      = 0x0013
-    case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA  = 0x0014
-    case TLS_DHE_RSA_WITH_DES_CBC_SHA           = 0x0015
-    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA      = 0x0016
-    case TLS_DH_anon_EXPORT_WITH_RC4_40_MD5     = 0x0017
-    case TLS_DH_anon_WITH_RC4_128_MD5           = 0x0018
-    case TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA  = 0x0019
-    case TLS_DH_anon_WITH_DES_CBC_SHA           = 0x001A
-    case TLS_DH_anon_WITH_3DES_EDE_CBC_SHA      = 0x001B
-    
-    case TLS_KRB5_WITH_DES_CBC_SHA              = 0x001E
-    case TLS_KRB5_WITH_3DES_EDE_CBC_SHA         = 0x001F
-    case TLS_KRB5_WITH_RC4_128_SHA              = 0x0020
-    case TLS_KRB5_WITH_IDEA_CBC_SHA             = 0x0021
-    case TLS_KRB5_WITH_DES_CBC_MD5              = 0x0022
-    case TLS_KRB5_WITH_3DES_EDE_CBC_MD5         = 0x0023
-    case TLS_KRB5_WITH_RC4_128_MD5              = 0x0024
-    case TLS_KRB5_WITH_IDEA_CBC_MD5             = 0x0025
-    
-    //TLS 1.1
-    case TLS_KRB5_EXPORT_WITH_DES_CBC_40_SHA    = 0x0026
-    case TLS_KRB5_EXPORT_WITH_RC2_CBC_40_SHA    = 0x0027
-    case TLS_KRB5_EXPORT_WITH_RC4_40_SHA        = 0x0028
-    case TLS_KRB5_EXPORT_WITH_DES_CBC_40_MD5    = 0x0029
-    case TLS_KRB5_EXPORT_WITH_RC2_CBC_40_MD5    = 0x002A
-    case TLS_KRB5_EXPORT_WITH_RC4_40_MD5        = 0x002B
-    case TLS_RSA_WITH_AES_128_CBC_SHA           = 0x002F
-    case TLS_DH_DSS_WITH_AES_128_CBC_SHA        = 0x0030
-    case TLS_DH_RSA_WITH_AES_128_CBC_SHA        = 0x0031
-    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA       = 0x0032
-    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA       = 0x0033
-    case TLS_DH_anon_WITH_AES_128_CBC_SHA       = 0x0034
-    case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x0035
-    case TLS_DH_DSS_WITH_AES_256_CBC_SHA        = 0x0036
-    case TLS_DH_RSA_WITH_AES_256_CBC_SHA        = 0x0037
-    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA       = 0x0038
-    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA       = 0x0039
-    case TLS_DH_anon_WITH_AES_256_CBC_SHA       = 0x003A
-    case TLS_RSA_WITH_AES_128_CBC_SHA256        = 0x003C
-    
     //TLS 1.2
-    case TLS_DH_DSS_WITH_AES_128_CBC_SHA256     = 0x003E
-    case TLS_DH_RSA_WITH_AES_128_CBC_SHA256     = 0x003F
-    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA256    = 0x0040
-    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA256    = 0x0067
-    case TLS_DH_DSS_WITH_AES_256_CBC_SHA256     = 0x0068
-    case TLS_DH_RSA_WITH_AES_256_CBC_SHA256     = 0x0069
-    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA256    = 0x006A
-    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA256    = 0x006B
+    case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256  = 0xc02f
+    /// 密钥交换算法 + 签名算法 + 对称加密算法 + 摘要算法
+    case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
 }
 
 enum CompressionMethod: UInt8 {
     case null = 0
+}
+
+typealias HMACFunction = (_ secret : [UInt8], _ data : [UInt8]) -> [UInt8]
+public enum MACAlgorithm {
+    //    case null
+    case hmac_md5
+    case hmac_sha1
+    case hmac_sha256
+    case hmac_sha384
+    case hmac_sha512
+    
+    var size: Int {
+        get {
+            switch self {
+                //            case .null:
+                //                fatalError("Null MAC has no size")
+                
+            case .hmac_md5:
+                return 16
+                
+            case .hmac_sha1:
+                return 20
+                
+            case .hmac_sha256:
+                return 32
+                
+            case .hmac_sha384:
+                return 48
+                
+            case .hmac_sha512:
+                return 64
+                
+            }
+        }
+    }
+    
+    var hmacFunction: HMACFunction {
+        switch self {
+        case .hmac_md5:
+            return HMAC_MD5
+            
+        case .hmac_sha1:
+            return HMAC_SHA1
+            
+        case .hmac_sha256:
+            return HMAC_SHA256
+            
+        case .hmac_sha384:
+            return HMAC_SHA384
+            
+        case .hmac_sha512:
+            return HMAC_SHA512
+        }
+    }
+}
+
+/// XOR
+func ^(lhs: [UInt8], rhs: [UInt8]) -> [UInt8]
+{
+    let minimum = min(rhs.count, lhs.count)
+    
+    var result = [UInt8](repeating: 0, count: minimum)
+    
+    for i in 0..<minimum {
+        result[i] = lhs[i] ^ rhs[i]
+    }
+    
+    return result
+}
+
+public extension String {
+    static func fromUTF8Bytes(_ bytes : [UInt8]) -> String? {
+        return bytes.withUnsafeBufferPointer { buffer in
+            var string  = ""
+            let hadError = transcode(buffer.makeIterator(), from: UTF8.self, to: UTF32.self, stoppingOnError: false) { string.append(Character(UnicodeScalar($0)!)) }
+            
+            if !hadError {
+                return string
+            }
+            
+            return nil
+        }
+    }
 }

@@ -7,14 +7,12 @@
 
 import Foundation
 import CocoaAsyncSocket
-import PerfectThread
 
 public class HTTPServer: NSObject {
     var socket: GCDAsyncSocket?
     var terminated = false
     var tlsEnabled: Bool = false
     private var sessions: [Int32 : GCDAsyncSocket] = [:]
-    private let event = Threading.Event()
     var waitMsg: TLSHandshakeMessage?
     public init(_ tls: Bool = false) {
         super.init()
@@ -23,19 +21,10 @@ public class HTTPServer: NSObject {
     }
     
     @discardableResult public func start(port: UInt16) -> Self {
-        let q = Threading.getQueue(name: "Server \(Foundation.UUID().uuidString)", type: .serial)
-        q.dispatch {
-            do {
-                try self.socket?.accept(onPort: port)
-            } catch {
-                LogError(error.localizedDescription)
-            }
-            self.event.lock()
-            defer {
-                self.event.unlock()
-            }
-            self.terminated = true
-            self.event.signal()
+        do {
+            try socket?.accept(onPort: port)
+        } catch {
+            LogError(error.localizedDescription)
         }
         print("start")
         return self
@@ -49,8 +38,9 @@ public class HTTPServer: NSObject {
 
 extension HTTPServer: GCDAsyncSocketDelegate {
     public func socket(_ sock: GCDAsyncSocket, didAcceptNewSocket newSocket: GCDAsyncSocket) {
-        LogInfo("")
+        LogInfo("\(Thread.current)")
         sessions[newSocket.socket4FD()] = newSocket
+        
         if tlsEnabled {
             newSocket.readData(tag: .handshake(.clientHello))
         } else {
@@ -60,7 +50,7 @@ extension HTTPServer: GCDAsyncSocketDelegate {
     
     public func socket(_ sock: GCDAsyncSocket, didRead data: Data, withTag tag: Int) {
         let rtag: RWTags = tag == 100 ? .http : .handshake(TLSHandshakeType(rawValue: UInt8(tag)) ?? .clientHello)
-        LogDebug("\(rtag)")
+        LogDebug("\(rtag) \(Thread.current)")
         switch rtag {
         case .handshake(_):
             let stream = DataStream(data)

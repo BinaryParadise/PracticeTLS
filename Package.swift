@@ -16,7 +16,6 @@ let package = Package(
         .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
         .package(name: "PerfectThread", url: "https://github.com/PerfectlySoft/Perfect-Thread.git", from: "3.0.0"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
-        .package(name: "CryptorRSA", url: "https://github.com/Kitura/BlueRSA", from: "1.0.0"),
     ], targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
@@ -25,7 +24,7 @@ let package = Package(
             dependencies: ["PracticeTLS"]),
         .target(
             name: "PracticeTLS",
-            dependencies: ["CocoaAsyncSocket", "Rainbow", "PerfectThread", "CryptoSwift", "CryptorRSA"],
+            dependencies: ["CocoaAsyncSocket", "Rainbow", "PerfectThread", "CryptoSwift"],
             resources: [.copy("Cert")]),
         .testTarget(
             name: "PracticeTLSTests",
