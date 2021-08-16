@@ -8,7 +8,7 @@
 import Foundation
 
 class TLSChangeCipherSpec: TLSHandshakeMessage {
-    var encryptedMessage: TLSEncryptedMessage?
+    var isClient: Bool = false
     override init() {
         super.init()
         type = .changeCipherSpec
@@ -17,7 +17,8 @@ class TLSChangeCipherSpec: TLSHandshakeMessage {
     }
     
     required init?(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
+        isClient = true
+        super.init(stream: stream)
     }
     
     override func dataWithBytes() -> Data {
@@ -26,10 +27,6 @@ class TLSChangeCipherSpec: TLSHandshakeMessage {
         data.append(contentsOf: version.rawValue.bytes())
         data.append(contentsOf: contentLength.bytes())
         data.append(0x01)
-        
-        if let em = encryptedMessage {
-            data.append(contentsOf: em.dataWithBytes().bytes)
-        }
         return Data(data)
     }
 }

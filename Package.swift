@@ -24,8 +24,9 @@ let package = Package(
             dependencies: ["PracticeTLS"]),
         .target(
             name: "PracticeTLS",
-            dependencies: ["CocoaAsyncSocket", "Rainbow", "PerfectThread", "CryptoSwift"],
+            dependencies: ["CocoaAsyncSocket", "Rainbow", "PerfectThread", "CryptoSwift", "SecurityRSA"],
             resources: [.copy("Cert")]),
+        .target(name: "SecurityRSA"),
         .testTarget(
             name: "PracticeTLSTests",
             dependencies: ["PracticeTLS"]),

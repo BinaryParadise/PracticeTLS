@@ -11,13 +11,15 @@ import CocoaAsyncSocket
 enum RWTags {
     case handshake(TLSHandshakeType)
     case http
+    
     init(rawValue: UInt8) {
         if rawValue == 0 {
             self = .http
         } else {
-            self = .handshake(TLSHandshakeType(rawValue: UInt8(rawValue)) ?? .clientHello)
+            self = .handshake(TLSHandshakeType(rawValue: rawValue) ?? .clientHello)
         }
     }
+    
     var rawValue: Int {
         switch self {
         case .handshake(let handshakeType):

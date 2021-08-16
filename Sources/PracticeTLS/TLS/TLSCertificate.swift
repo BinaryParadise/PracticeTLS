@@ -21,33 +21,39 @@ public class TLSCertificate: TLSHandshakeMessage {
         super.init()
         
         handshakeType = .certificate
-        if let certPath = Bundle.certBundle().path(forResource: "Cert/localhost.cer", ofType: nil) {
-            if let certData = try? Data(contentsOf: URL(fileURLWithPath: certPath)) {
-                self.certData = certData
-                contentLength = UInt16(certData.count + 4 + 3 + 3)
-                bodyLength = Int(contentLength - 4)
-                certsLength = bodyLength - 3
-            }
-        }
     }
     
     required init?(stream: DataStream) {
         fatalError("init(stream:) has not been implemented")
     }
     
+    public override func responseMessage() -> TLSHandshakeMessage? {        
+        let helloDone = TLSServerHelloDone()
+        helloDone.version = version
+        return helloDone
+    }
+    
     override func dataWithBytes() -> Data {
-        var bytes = Data()
+        var certificateData: [UInt8] = []
+
+        var certificatesList: [UInt8] = []
+        for certificate in TLSSessionManager.shared.identity.certificateChain {
+            let certificateData = certificate.data
+            certificatesList.append(contentsOf: UInt(certificateData.count).bytes()[1...3])
+            certificatesList.append(contentsOf: certificateData)
+        }
+        certificateData.append(contentsOf: UInt(certificatesList.count).bytes()[1...3])
+        certificateData.append(contentsOf: certificatesList)
+        
+        var bytes: [UInt8] = []
         //header
         bytes.append(type.rawValue) // 1 byte
         bytes.append(contentsOf: version.rawValue.bytes()) // 2 bytes
-        bytes.append(contentsOf: UInt16(contentLength).bytes()) // 2 bytes
-        
-        //body
-        bytes.append(handshakeType.rawValue) // 1 byte
-        bytes.append(contentsOf: UInt(bodyLength).bytes()[1..<4]) //3 bytes
-        bytes.append(contentsOf: UInt(certsLength).bytes()[1..<4]) //3 bytes
-        bytes.append(contentsOf: UInt(certsLength-3).bytes()[1..<4]) // 3 bytes
-        bytes.append(certData) //x bytes
-        return bytes
+        bytes.append(contentsOf: UInt16(certificateData.count + 4).bytes()) // 2 bytes
+
+        bytes.append(handshakeType.rawValue)
+        bytes.append(contentsOf: UInt(certificateData.count).bytes()[1...3])
+        bytes.append(contentsOf: certificateData)
+        return Data(bytes)
     }
 }

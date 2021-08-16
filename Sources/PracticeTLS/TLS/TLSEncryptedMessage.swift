@@ -8,7 +8,13 @@
 import Foundation
 
 class TLSEncryptedMessage: TLSHandshakeMessage {
-    var message: [UInt8]
+    var message: [UInt8] = []
+    
+    override init() {
+        super.init()
+        version = .V1_2
+    }
+    
     required init?(stream: DataStream) {
         stream.position = 5
         message = stream.readToEnd() ?? []
@@ -19,7 +25,7 @@ class TLSEncryptedMessage: TLSHandshakeMessage {
         var data = Data()
         data.append(type.rawValue)
         data.append(contentsOf: version.rawValue.bytes())
-        data.append(contentsOf: contentLength.bytes())
+        data.append(contentsOf: UInt16(message.count).bytes())
         data.append(contentsOf: message)
         return data
     }

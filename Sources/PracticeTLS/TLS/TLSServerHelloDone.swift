@@ -21,7 +21,7 @@ class TLSServerHelloDone: TLSHandshakeMessage {
     }
     
     override func dataWithBytes() -> Data {
-        var bytes = TLSCertificate().dataWithBytes()
+        var bytes = Data()
         //header
         bytes.append(type.rawValue) // 1 byte
         bytes.append(contentsOf: version.rawValue.bytes()) // 2 bytes

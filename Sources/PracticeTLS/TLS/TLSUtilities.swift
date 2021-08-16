@@ -7,13 +7,9 @@
 
 import Foundation
 
-class Random: Equatable {
+class Random: Equatable, Streamable {
     var gmtUnixTime: UInt32
     var randomBytes: [UInt8]
-    
-    var bytes: [UInt8] {
-        return self.gmtUnixTime.bigEndianBytes + randomBytes
-    }
     
     init() {
         randomBytes = TLSRandomBytes(count: 28)
@@ -29,6 +25,10 @@ class Random: Equatable {
     static func == (lhs: Random, rhs: Random) -> Bool {
         return lhs.gmtUnixTime == rhs.gmtUnixTime && lhs.randomBytes == rhs.randomBytes
     }
+    
+    func dataWithBytes() -> Data {
+        return Data(self.gmtUnixTime.bigEndianBytes + randomBytes)
+    }
 }
 
 public enum TLSError : Error
@@ -40,7 +40,7 @@ enum CipherSuite: UInt16 {
     //TLS 1.2
     case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256  = 0xc02f
     /// 密钥交换算法 + 签名算法 + 对称加密算法 + 摘要算法
-    case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
+    case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
 }
 
 enum CompressionMethod: UInt8 {
@@ -128,4 +128,23 @@ public extension String {
             return nil
         }
     }
+}
+
+/// P_hash function as defined in RFC 2246, section 5, p. 11
+func P_hash(_ hmacFunction : HMACFunction, secret : [UInt8], seed : [UInt8], outputLength : Int) -> [UInt8]
+{
+    var outputData = [UInt8]()
+    var A : [UInt8] = seed
+    var bytesLeftToWrite = outputLength
+    while (bytesLeftToWrite > 0)
+    {
+        A = hmacFunction(secret, A)
+        let output = hmacFunction(secret, A + seed)
+        let bytesFromOutput = min(bytesLeftToWrite, output.count)
+        outputData.append(contentsOf: output[0..<bytesFromOutput])
+        
+        bytesLeftToWrite -= bytesFromOutput
+    }
+    
+    return outputData
 }

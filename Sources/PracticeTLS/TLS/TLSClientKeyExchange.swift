@@ -6,29 +6,25 @@
 //
 
 import Foundation
-import CryptorRSA
+import SecurityRSA
 
 class EncryptedPreMasterSecret {
     var preLength: UInt16 = 0
     var clientVersion: TLSVersion = .V1_2
-    var random: [UInt8] = []
-    var encryptedPreMaster: [UInt8] = []
+    var preMasterKey: [UInt8] = []
     init(_ stream: DataStream) {
         preLength = stream.readUInt16()!
         BigInt.withContext { _ in
-            self.encryptedPreMaster = stream.read(count: Int(preLength))!
-            //TODO: 解密预备主密匙
-            /*let identity = PEMFileIdentity(certificateFile: Bundle.certBundle().path(forResource: "Cert/localhost.crt", ofType: nil)!, privateKeyFile: Bundle.certBundle().path(forResource: "Cert/private.pem", ofType: nil)!)
-            if let rsa = identity?.signer(with: .sha256) as? RSA {
-                do {
-                    let decryptedPreMaster = try rsa.decrypt(encryptedPreMaster)
-                    let preStream = DataStream(Data(decryptedPreMaster))
-                    self.clientVersion = TLSVersion(rawValue: preStream.readUInt16()!)
-                    self.random = preStream.read(count: 46) ?? []
-                } catch {
-                    LogError("预备密匙解密失败：\(error)")
-                }
-            }*/
+            let encryptedPreMaster = stream.read(count: Int(preLength))!
+            let rsa = RSAEncryptor()
+            do {
+                let preMasterSecret = try rsa.decryptData(data: encryptedPreMaster)
+                let preStream = DataStream(Data(preMasterSecret))
+                self.clientVersion = TLSVersion(rawValue: preStream.readUInt16()!)
+                self.preMasterKey = preStream.read(count: 46) ?? []
+            } catch {
+                LogError("预备密匙解密失败：\(error)")
+            }
         }
     }
 }
@@ -52,7 +48,6 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
     
     override func responseMessage() -> TLSHandshakeMessage? {
         let res = TLSChangeCipherSpec()
-        res.encryptedMessage = encryptedMessage
         return res
     }
 }

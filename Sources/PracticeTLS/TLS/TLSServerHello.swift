@@ -13,7 +13,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     var random: Random = Random()
     var sessionID: String?
     /// 必须选择客户端支持的加密套件，此处仅实现一种
-    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
+    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = [TLSExtension(type: .statusRequest, length: 0)]
     let extLen: UInt16 = 4
@@ -54,9 +54,9 @@ public class TLSServerHello: TLSHandshakeMessage {
     }
     
     public override func responseMessage() -> TLSHandshakeMessage? {
-        let helloDone = TLSServerHelloDone()
-        helloDone.version = version
-        return helloDone
+        let cert = TLSCertificate()
+        cert.version = version
+        return cert
     }
     
     override func dataWithBytes() -> Data {
@@ -70,7 +70,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         bytes.append(handshakeType.rawValue) // 1 byte
         bytes.append(contentsOf: UInt(bodyLength).bytes()[1..<4]) //3 bytes
         bytes.append(contentsOf: clientVersion.rawValue.bytes()) //2 bytes
-        bytes.append(contentsOf: random.bytes) //32 bytes
+        bytes.append(contentsOf: random.dataWithBytes()) //32 bytes
         bytes.append(UInt8(truncatingIfNeeded: sessionID?.count ?? 0)) //1 byte
         bytes.append(contentsOf: cipherSuite.rawValue.bytes()) //2 bytes
         bytes.append(compressionMethod.rawValue) //1 byte
