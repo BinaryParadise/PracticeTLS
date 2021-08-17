@@ -5,7 +5,7 @@ import class Foundation.Bundle
 final class TLSHandshakeMessageTests: XCTestCase {
     
     func testStream() throws {
-        var stream = DataStream(bytes: [9,1,2,3,4,5])
+        var stream = DataStream([9,1,2,3,4,5])
         XCTAssertEqual(stream.readByte(), 9)
         XCTAssertEqual(stream.read(count: 3), [1,2,3])
         XCTAssertEqual(stream.read(count: 2), [4,5])

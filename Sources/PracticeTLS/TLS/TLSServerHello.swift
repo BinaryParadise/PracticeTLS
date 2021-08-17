@@ -28,29 +28,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     }
     
     required init?(stream: DataStream) {
-        _ = stream.read(count: 5)
-        let _handshakeType = TLSHandshakeType(rawValue: stream.readByte()!) ?? .serverHello
-        bodyLength = stream.readUInt24() ?? 0
-        clientVersion = TLSVersion(rawValue: stream.readUInt16() ?? 0)
-        random = Random(stream.read(count: 32)!)
-        if let len = stream.readByte(), len > 0 {
-            sessionID = String(data: Data(stream.read(count: Int(len)) ?? []), encoding: .utf8)
-        }
-        if let cipher = stream.readUInt16() {
-            if let suite = CipherSuite(rawValue: cipher) {
-                cipherSuite = suite
-            } else {
-                //print("\(String(format: "unsupport cipher suite: 0x%0X", cipher))")
-            }
-        }
-        if let method = stream.readByte() {
-            compressionMethod = CompressionMethod(rawValue: method) ?? .null
-        }
-        if let extLen = stream.readUInt16(), let bytes = stream.readToEnd() {
-            //TODO: 扩展
-        }
-        super.init(stream: DataStream(stream.data))
-        handshakeType = _handshakeType
+        fatalError("init(stream:) has not been implemented")
     }
     
     public override func responseMessage() -> TLSHandshakeMessage? {
@@ -59,8 +37,8 @@ public class TLSServerHello: TLSHandshakeMessage {
         return cert
     }
     
-    override func dataWithBytes() -> Data {
-        var bytes = Data()
+    override func dataWithBytes() -> [UInt8] {
+        var bytes:[UInt8] = []
         //header
         bytes.append(type.rawValue) // 1 byte
         bytes.append(contentsOf: version.rawValue.bytes()) // 2 bytes

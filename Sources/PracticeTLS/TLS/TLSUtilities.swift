@@ -17,17 +17,17 @@ class Random: Equatable, Streamable {
     }
     
     init(_ bytes: [UInt8]) {
-        let stream = DataStream(bytes: bytes)
+        let stream = DataStream(bytes)
         gmtUnixTime = UInt32(bigEndianBytes: bytes[0..<4])!
-        randomBytes = stream.readToEnd() ?? []
+        randomBytes = stream.read(count: 28) ?? []
     }
         
     static func == (lhs: Random, rhs: Random) -> Bool {
         return lhs.gmtUnixTime == rhs.gmtUnixTime && lhs.randomBytes == rhs.randomBytes
     }
     
-    func dataWithBytes() -> Data {
-        return Data(self.gmtUnixTime.bigEndianBytes + randomBytes)
+    func dataWithBytes() -> [UInt8] {
+        return self.gmtUnixTime.bigEndianBytes + randomBytes
     }
 }
 
@@ -37,10 +37,9 @@ public enum TLSError : Error
 }
 
 enum CipherSuite: UInt16 {
-    //TLS 1.2
-    case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256  = 0xc02f
     /// 密钥交换算法 + 签名算法 + 对称加密算法 + 摘要算法
     case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
+    case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x3d
 }
 
 enum CompressionMethod: UInt8 {

@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CryptoSwift
 
 public enum HashAlgorithm : UInt8 {
     case none   = 0
@@ -46,6 +45,8 @@ public enum HashAlgorithm : UInt8 {
     typealias HashFunction = ([UInt8]) -> [UInt8]
     var hashFunction: HashFunction {
         switch self {
+        case .sha1:
+            return Hash_SHA1
         case .sha256:
             return Hash_SHA256
             
@@ -94,14 +95,18 @@ struct TLSSignedData: Streamable {
     var hashAlgorithm : HashAlgorithm = .sha256
     var signatureAlgorithm : SignatureAlgorithm = .rsa
     
-    var signature : [UInt8]
+    var signature : [UInt8] = []
     
-    init(data: Data) {
-        signature = Digest.sha256(data.bytes)
+    init(data: [UInt8]) {
+        do {
+            try signature = TLSSessionManager.shared.identity.signer(with: hashAlgorithm).sign(data: data)
+        } catch {
+            LogError("签名失败: \(error)")
+        }
     }
     
-    func dataWithBytes() -> Data {
-        var data = Data()
+    func dataWithBytes() -> [UInt8] {
+        var data:[UInt8] = []
         data.append(hashAlgorithm.rawValue)
         data.append(signatureAlgorithm.rawValue)
         data.append(contentsOf: UInt16(signature.count).bytes())

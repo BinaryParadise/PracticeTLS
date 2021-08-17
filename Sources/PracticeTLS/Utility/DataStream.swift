@@ -8,13 +8,13 @@
 import Foundation
 
 protocol Streamable {
-    func dataWithBytes() -> Data
+    func dataWithBytes() -> [UInt8]
 }
 
 /// Data读取流
 class DataStream {
-    private var origin: Data = Data()
-    var data: Data {
+    private var origin: [UInt8] = []
+    var data: [UInt8] {
         return origin
     }
     
@@ -22,11 +22,11 @@ class DataStream {
     var position: Int = 0
     
     init(_ data: Data) {
-        self.origin = data
+        self.origin = data.bytes
     }
     
-    init(bytes: [UInt8]) {
-        self.origin = Data(bytes)
+    init(_ bytes: [UInt8]) {
+        self.origin = bytes
     }
     
     /// 重置读取

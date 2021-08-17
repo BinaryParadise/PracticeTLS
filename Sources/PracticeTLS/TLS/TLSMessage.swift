@@ -24,7 +24,7 @@ public class TLSMessage: Streamable {
         contentLength = stream.readUInt16() ?? 0
     }
     
-    func dataWithBytes() -> Data {
-        return Data()
+    func dataWithBytes() -> [UInt8] {
+        return []
     }
 }

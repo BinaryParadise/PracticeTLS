@@ -166,6 +166,10 @@ static func bese64_decode(str:String) -> Data {
         return decryptedDataBytes
     }
     
+    public func sign(data: [UInt8]) throws -> [UInt8] {
+        let keyRef = try PrivateKey(pemEncoded: kRSAPrivateKey).reference
+        return RSASign().RSASingNetCon(data: data, privateKey: keyRef) ?? []
+    }
 }
 
 

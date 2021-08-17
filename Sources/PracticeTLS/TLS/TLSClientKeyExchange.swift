@@ -10,7 +10,6 @@ import SecurityRSA
 
 class EncryptedPreMasterSecret {
     var preLength: UInt16 = 0
-    var clientVersion: TLSVersion = .V1_2
     var preMasterKey: [UInt8] = []
     init(_ stream: DataStream) {
         preLength = stream.readUInt16()!
@@ -20,8 +19,8 @@ class EncryptedPreMasterSecret {
             do {
                 let preMasterSecret = try rsa.decryptData(data: encryptedPreMaster)
                 let preStream = DataStream(Data(preMasterSecret))
-                self.clientVersion = TLSVersion(rawValue: preStream.readUInt16()!)
-                self.preMasterKey = preStream.read(count: 46) ?? []
+                //self.clientVersion = TLSVersion(rawValue: preStream.readUInt16()!)
+                self.preMasterKey = preStream.read(count: 48) ?? []
             } catch {
                 LogError("预备密匙解密失败：\(error)")
             }

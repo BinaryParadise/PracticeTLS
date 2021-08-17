@@ -20,15 +20,6 @@
         }
       },
       {
-        "package": "PerfectThread",
-        "repositoryURL": "https://github.com/PerfectlySoft/Perfect-Thread.git",
-        "state": {
-          "branch": null,
-          "revision": "a50b9a33f08fce638f33ae3121613fe499cc23ec",
-          "version": "3.0.7"
-        }
-      },
-      {
         "package": "Rainbow",
         "repositoryURL": "https://github.com/onevcat/Rainbow",
         "state": {

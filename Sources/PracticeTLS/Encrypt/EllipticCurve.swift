@@ -100,8 +100,8 @@ public enum NamedGroup : UInt16 {
 }
 
 extension NamedGroup : Streamable {
-    func dataWithBytes() -> Data {
-        return Data(rawValue.bytes())
+    func dataWithBytes() -> [UInt8] {
+        return rawValue.bytes()
     }
 }
 
@@ -142,8 +142,8 @@ struct EllipticCurvePoint
 }
 
 extension EllipticCurvePoint : Streamable {
-    func dataWithBytes() -> Data {
-        var data = Data()
+    func dataWithBytes() -> [UInt8] {
+        var data:[UInt8] = []
         data.append(UInt8(4))
         data.append(contentsOf: self.x.asBigEndianData() + self.y.asBigEndianData())
         return data

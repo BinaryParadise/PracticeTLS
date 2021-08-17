@@ -407,9 +407,9 @@ public struct X509
 }
 
 extension X509.Certificate : Streamable {
-    func dataWithBytes() -> Data {
-        var certificateData = self.data
+    func dataWithBytes() -> [UInt8] {
+        var certificateData = Array(self.data)
         certificateData.insert(contentsOf: UInt(certificateData.count).bytes(), at: 0)
-        return Data(certificateData)
+        return certificateData
     }
 }

@@ -72,7 +72,7 @@ extension HTTPServer: GCDAsyncSocketDelegate {
 
             \(content)
             """
-        sock.writeData(data: response.data(using: .utf8), tag: .http)
+        sock.writeData(data: Array(response.data(using: .utf8) ?? Data()), tag: .http)
     }
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {

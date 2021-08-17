@@ -35,7 +35,20 @@ extension GCDAsyncSocket {
         readData(withTimeout: 5, tag: tag.rawValue)
     }
     
-    func writeData(data: Data?, tag: RWTags) -> Void {
-        write(data, withTimeout: 5, tag: tag.rawValue)
+    func writeData(data: [UInt8]?, tag: RWTags) -> Void {
+        write(Data(data ?? []), withTimeout: 5, tag: tag.rawValue)
     }
+}
+
+extension Array where Element == UInt8 {
+
+  public func toHexArray() -> String {
+    `lazy`.reduce(into: "") {
+      var s = String($1, radix: 16)
+      if s.count == 1 {
+        s = "0" + s
+      }
+      $0 += "0x\(s), "
+    }
+  }
 }

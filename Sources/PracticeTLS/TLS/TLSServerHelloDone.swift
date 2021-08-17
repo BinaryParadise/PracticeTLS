@@ -20,8 +20,8 @@ class TLSServerHelloDone: TLSHandshakeMessage {
         fatalError("init(stream:) has not been implemented")
     }
     
-    override func dataWithBytes() -> Data {
-        var bytes = Data()
+    override func dataWithBytes() -> [UInt8] {
+        var bytes:[UInt8] = []
         //header
         bytes.append(type.rawValue) // 1 byte
         bytes.append(contentsOf: version.rawValue.bytes()) // 2 bytes

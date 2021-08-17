@@ -80,3 +80,10 @@ struct TLSExtension {
         return type.rawValue.bytes() + length.bytes()
     }
 }
+
+
+extension Data {
+    var bytes: [UInt8] {
+        return [UInt8](self)
+    }
+}
