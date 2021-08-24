@@ -325,21 +325,10 @@ public struct X509
         
         var data: [UInt8]
         
-        var rsa: RSA? {
-            guard case .rsaEncryption = tbsCertificate.subjectPublicKeyInfo.algorithm.oid else {
-                return nil
-            }
-            
-            let publicKeyInfo = tbsCertificate.subjectPublicKeyInfo
-            return RSA(publicKey: publicKeyInfo.subjectPublicKey.bits)
-        }
-        
         var publicKeySigner: Signing? {
             let publicKeyInfo = tbsCertificate.subjectPublicKeyInfo
 
             switch tbsCertificate.subjectPublicKeyInfo.algorithm.oid {
-            case .rsaEncryption:
-                return RSA(certificate: self)
             default:
                 LogError("Unsuported certificate public key \(tbsCertificate.subjectPublicKeyInfo.algorithm.oid)")
                 return nil

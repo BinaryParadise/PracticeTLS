@@ -11,35 +11,9 @@ import Foundation
 public class PEMFileIdentity
 {
     public var certificateChain: [X509.Certificate]
-    public func signer(with hashAlgorithm: HashAlgorithm) -> Signing {
-        switch _signing {
-        case is RSA:
-            var rsa = _signing as! RSA
-            switch rsa.algorithm {
-            case .rsa_pkcs1(hash: _):
-                rsa.algorithm = .rsa_pkcs1(hash: hashAlgorithm)
-            case .rsassa_pss(hash: _, saltLength: let saltLength):
-                rsa.algorithm = .rsassa_pss(hash: hashAlgorithm, saltLength: saltLength)
-            default:
-                fatalError("Unimplemented RSA algorithm \(rsa.algorithm)")
-            }
-            
-            return rsa
-        default:
-            fatalError("Unsupported certificate \(_signing)")
-        }
-    }
-        
-    private var _signing: Signing
     
     public init?(certificateFile: String, privateKeyFile: String)
     {
-        if let rsa = RSA.fromPEMFile(privateKeyFile) {
-            _signing = rsa
-        }
-        else {
-            return nil
-        }
         
         certificateChain = []
         for (section, object) in ASN1Parser.sectionsFromPEMFile(certificateFile) {
@@ -67,7 +41,13 @@ public class PEMFileIdentity
 public protocol Identity
 {
     var certificateChain: [X509.Certificate] { get }
-    func signer(with hashAlgorithm: HashAlgorithm) -> Signing
+    func signer(with hashAlgorithm: HashAlgorithm) -> Signing?
 }
 
-extension PEMFileIdentity : Identity {}
+extension PEMFileIdentity: Identity {
+    public func signer(with hashAlgorithm: HashAlgorithm) -> Signing? {
+        return nil
+    }
+    
+    
+}

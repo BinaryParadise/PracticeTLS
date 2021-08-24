@@ -44,4 +44,6 @@ swift package init
 
 [从Chrome源码看HTTPS](https://zhuanlan.zhihu.com/p/34041372)
 
+[AES-GCM 加密简介](https://juejin.cn/post/6844904122676690951)
+
 [TLS1.2 PreMasterSecret And MasterSecret](https://laoqingcai.com/tls1.2-premasterkey/)

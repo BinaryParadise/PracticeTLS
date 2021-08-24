@@ -13,17 +13,17 @@ public class TLSServerHello: TLSHandshakeMessage {
     var random: Random = Random()
     var sessionID: String?
     /// 必须选择客户端支持的加密套件，此处仅实现一种
-    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA
+    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
     var compressionMethod: CompressionMethod = .null
-    var extensions: [TLSExtension] = [TLSExtension(type: .statusRequest, length: 0)]
-    let extLen: UInt16 = 4
+    var extensions: [TLSExtension] = [] //[.init(type: .renegotiation_info, length: 1, ext: [0])]
+    let extLen: UInt16 = 0
 
     override init() {
         super.init()
         type = .handeshake
         handshakeType = .serverHello
         version = .V1_2
-        contentLength = 42 + 2 + extLen
+        contentLength = 42 + (extLen > 0 ? 2 : 0) + extLen
         bodyLength = Int(contentLength - 4)
     }
     
@@ -52,9 +52,11 @@ public class TLSServerHello: TLSHandshakeMessage {
         bytes.append(UInt8(truncatingIfNeeded: sessionID?.count ?? 0)) //1 byte
         bytes.append(contentsOf: cipherSuite.rawValue.bytes()) //2 bytes
         bytes.append(compressionMethod.rawValue) //1 byte
-        bytes.append(contentsOf: extLen.bytes()) //2 bytes
-        extensions.forEach { ext in
-            bytes.append(contentsOf: ext.bytes)
+        if extensions.count > 0 {
+            bytes.append(contentsOf: extLen.bytes()) //2 bytes
+            extensions.forEach { ext in
+                bytes.append(contentsOf: ext.bytes)
+            }
         }
         return bytes
     }

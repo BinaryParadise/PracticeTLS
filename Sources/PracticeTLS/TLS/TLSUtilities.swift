@@ -18,7 +18,7 @@ class Random: Equatable, Streamable {
     
     init(_ bytes: [UInt8]) {
         let stream = DataStream(bytes)
-        gmtUnixTime = UInt32(bigEndianBytes: bytes[0..<4])!
+        gmtUnixTime = UInt32(bigEndianBytes: stream.read(count: 4) ?? [])!
         randomBytes = stream.read(count: 28) ?? []
     }
         
@@ -40,6 +40,7 @@ enum CipherSuite: UInt16 {
     /// 密钥交换算法 + 签名算法 + 对称加密算法 + 摘要算法
     case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
     case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x3d
+    case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
 }
 
 enum CompressionMethod: UInt8 {

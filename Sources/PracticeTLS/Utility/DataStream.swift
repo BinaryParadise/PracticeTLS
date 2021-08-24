@@ -94,6 +94,19 @@ extension UInt {
     }
 }
 
+extension UInt64 {
+    func bytes() -> [UInt8] {
+        return [UInt8(truncatingIfNeeded: self >> 56),
+                UInt8(truncatingIfNeeded: self >> 48),
+                UInt8(truncatingIfNeeded: self >> 40),
+                UInt8(truncatingIfNeeded: self >> 32),
+                UInt8(truncatingIfNeeded: self >> 24),
+                UInt8(truncatingIfNeeded: self >> 16),
+                UInt8(truncatingIfNeeded: self >> 8),
+                UInt8(truncatingIfNeeded: self)]
+    }
+}
+
 extension UInt16 {
     func bytes() -> [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 8),

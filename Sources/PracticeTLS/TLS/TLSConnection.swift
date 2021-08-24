@@ -9,73 +9,19 @@ import Foundation
 import CocoaAsyncSocket
 import CryptoSwift
 
-let TLSClientFinishedLabel = [UInt8]("client finished".utf8)
-let TLSServerFinishedLabel = [UInt8]("server finished".utf8)
-let TLSKeyExpansionLabel = [UInt8]("key expansion".utf8)
+public let TLSClientFinishedLabel = [UInt8]("client finished".utf8)
+public let TLSServerFinishedLabel = [UInt8]("server finished".utf8)
+public let TLSKeyExpansionLabel = [UInt8]("key expansion".utf8)
 
 class TLSConnection: NSObject {
     var sock: GCDAsyncSocket
     var nextMessage: TLSHandshakeMessage?
-    var clientRandom: [UInt8] = []
-    var serverRandom: [UInt8] = []
     var preMasterKey: [UInt8] = []
-    var masterSecret: [UInt8] = []
     var handshakeMessages: [TLSHandshakeMessage] = []
     var version: TLSVersion = .V1_2
     var hashAlgorithm: HashAlgorithm = .sha256
-    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA
-    var securityParameters: TLSSecurityParameters {
-        didSet {
-            let s = securityParameters
-            if let hmac = s.hmac {
-                let hmacSize = s.cipherType == .aead ? 0 : hmac.size
-                let fixedIVLength = s.fixedIVLength
-                let numberOfKeyMaterialBytes = 2 * (hmacSize + s.encodeKeyLength + fixedIVLength)
-                let keyBlock = PRF(secret: masterSecret, label: TLSKeyExpansionLabel, seed: serverRandom + clientRandom, outputLength: numberOfKeyMaterialBytes)
-                
-                var index = 0
-                let clientWriteMACKey = [UInt8](keyBlock[index..<index + hmacSize])
-                index += hmacSize
-                
-                let serverWriteMACKey = [UInt8](keyBlock[index..<index + hmacSize])
-                index += hmacSize
-                
-                let clientWriteKey = [UInt8](keyBlock[index..<index + s.encodeKeyLength])
-                index += s.encodeKeyLength
-                
-                let serverWriteKey = [UInt8](keyBlock[index..<index + s.encodeKeyLength])
-                index += s.encodeKeyLength
-                
-                let clientWriteIV = [UInt8](keyBlock[index..<index + fixedIVLength])
-                index += fixedIVLength
-                
-                let serverWriteIV = [UInt8](keyBlock[index..<index + fixedIVLength])
-                index += fixedIVLength
-                                
-                readEncryptionParameters  = TLSEncryptionParameters(hmac: hmac,
-                                                                 MACKey: clientWriteMACKey,
-                                                                 bulkCipherAlgorithm: s.bulkCipherAlgorithm!,
-                                                                 blockCipherMode: s.blockCipherMode!,
-                                                                 bulkKey: clientWriteKey,
-                                                                 blockLength: s.blockLength,
-                                                                 fixedIVLength: s.fixedIVLength,
-                                                                 recordIVLength: s.recordIVLength,
-                                                                 fixedIV: clientWriteIV)
-                
-                writeEncryptionParameters = TLSEncryptionParameters(hmac: hmac,
-                                                                 MACKey: serverWriteMACKey,
-                                                                 bulkCipherAlgorithm: s.bulkCipherAlgorithm!,
-                                                                 blockCipherMode: s.blockCipherMode!,
-                                                                 bulkKey: serverWriteKey,
-                                                                 blockLength: s.blockLength,
-                                                                 fixedIVLength: s.fixedIVLength,
-                                                                 recordIVLength: s.recordIVLength,
-                                                                 fixedIV: serverWriteIV)
-            }
-        }
-    }
-    private var readEncryptionParameters: TLSEncryptionParameters?
-    private var writeEncryptionParameters: TLSEncryptionParameters?
+    var cipherSuite: CipherSuite?
+    var securityParameters: TLSSecurityParameters
     
     init(_ sock: GCDAsyncSocket) {
         self.sock = sock
@@ -96,7 +42,7 @@ class TLSConnection: NSObject {
         }
         let cipherAlgorithm = cipherSuiteDescriptor.bulkCipherAlgorithm
         
-        let s = TLSSecurityParameters()
+        let s = securityParameters
         s.bulkCipherAlgorithm = cipherAlgorithm
         s.blockCipherMode     = cipherSuiteDescriptor.blockCipherMode
         s.cipherType          = cipherSuiteDescriptor.cipherType
@@ -105,26 +51,22 @@ class TLSConnection: NSObject {
         s.fixedIVLength       = cipherSuiteDescriptor.fixedIVLength
         s.recordIVLength      = cipherSuiteDescriptor.recordIVLength
         s.hmac                = cipherSuiteDescriptor.hashAlgorithm.macAlgorithm
-        self.securityParameters = s
+        s.preMasterSecret = preMasterKey
+        s.transformParamters()
     }
     
-    private func calculateMasterSecret() -> [UInt8]
-    {
-        return PRF(secret: preMasterKey, label: [UInt8]("master secret".utf8), seed: clientRandom + serverRandom, outputLength: 48)
-    }
-    
-    func verifyDataForFinishedMessage(isClient: Bool = false) -> [UInt8] {
+    func verifyDataForFinishedMessage(isClient: Bool = false) -> TLSFinished {
         let finishedLabel = isClient ? TLSClientFinishedLabel : TLSServerFinishedLabel
         var handshakeData: [UInt8] = []
         for msg in handshakeMessages {
-            handshakeData.append(contentsOf: msg.dataWithBytes())
+            let d = msg.messageData()
+            print("msg => \(d.count)")
+            handshakeData.append(contentsOf: d)
         }
-        let transcriptHash = hashAlgorithm.hashFunction([UInt8](handshakeData.dropLast(0)))
-        return PRF(secret: masterSecret, label: finishedLabel, seed: transcriptHash, outputLength: 12)
-    }
-    
-    func PRF(secret : [UInt8], label : [UInt8], seed : [UInt8], outputLength : Int) -> [UInt8] {
-        return P_hash(hashAlgorithm.macAlgorithm.hmacFunction, secret: secret, seed: label + seed, outputLength: outputLength)
+        print("handshakeData => \(handshakeData.count)")
+        let transcriptHash = hashAlgorithm.hashFunction(handshakeData.dropLast(0))
+        let verifyData = securityParameters.PRF(secret: securityParameters.masterSecret, label: finishedLabel, seed: transcriptHash, outputLength: 12)
+        return TLSFinished(verifyData)
     }
 }
 
@@ -146,17 +88,17 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                     switch msg {
                     case is TLSClientHello:
                         let clientHello = msg as! TLSClientHello
-                        clientRandom = clientHello.random.randomBytes
+                        //PS：TMD这里要完整的，而不是28字节
+                        securityParameters.clientRandom = clientHello.random.dataWithBytes()
                         handshakeMessages.append(msg)
                         tlsResponse(msg.responseMessage())
                     case is TLSClientKeyExchange:
                         let exchange = msg as! TLSClientKeyExchange
                         preMasterKey = exchange.preMasterSecret.preMasterKey
-                        masterSecret = calculateMasterSecret()
-                        setPendingSecurityParametersForCipherSuite(cipherSuite)
+                        setPendingSecurityParametersForCipherSuite(cipherSuite!)
                         if let em = exchange.encryptedMessage {
                             _ = decryptAndVerifyMAC(contentType: em.type, data: em.message)
-                            readEncryptionParameters?.sequenceNumber += 1
+                            securityParameters.read?.sequenceNumber += 1
                         }
                         handshakeMessages.append(msg)
                         tlsResponse(msg.responseMessage())
@@ -172,21 +114,37 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     }
     
     private func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) -> [UInt8]? {
-        guard let encryptionParameters = readEncryptionParameters else { return nil }
-        let IV : [UInt8]
-        let cipherText : [UInt8]
-
-        IV = [UInt8](data[0..<encryptionParameters.recordIVLength])
-        cipherText = [UInt8](data[encryptionParameters.recordIVLength..<data.count])
+        guard let encryptionParameters = securityParameters.read else { return nil }
+        let IV = [UInt8](data[0..<securityParameters.recordIVLength])
+        let cipherText = [UInt8](data[securityParameters.recordIVLength...])
         
-        let blockCipher = BlockCipher.decryptionBlockCipher(encryptionParameters.bulkCipherAlgorithm, mode: encryptionParameters.blockCipherMode, key: encryptionParameters.bulkKey)
-                
-        if let message = blockCipher?.update(data: cipherText, key: encryptionParameters.bulkKey, IV: IV) {
-            
-            let hmacLength = encryptionParameters.hmac.size
+                            
+        assert(IV+cipherText == data)
+        let aes = try? CryptoSwift.AES(key: encryptionParameters.bulkKey, blockMode: CBC(iv: IV), padding: .noPadding)
+        
+        var message: [UInt8]?
+        
+        do {
+            message = try aes?.decrypt(cipherText)
+            assert(message!.first == 20)
+        } catch {
+            LogError("\(error)")
+        }
+        
+        print("let preMasterSecret:[UInt8] = [\(preMasterKey.toHexArray())]")
+        print("let masterSecret:[UInt8] = [\(securityParameters.masterSecret.toHexArray())]")
+        print("let clientRandom:[UInt8] = [\(securityParameters.clientRandom.toHexArray())]")
+        print("let serverRandom:[UInt8] = [\(securityParameters.serverRandom.toHexArray())]")
+        print("let bulkKey:[UInt8] = [\(encryptionParameters.bulkKey.toHexArray())]")
+        print("let IV:[UInt8] = [\(IV.toHexArray())]")
+        
+        print("let cipherData:[UInt8] = [\(data.toHexArray())]")
+        
+        if let message = message {            
+            let hmacLength = securityParameters.hmac.size
             var messageLength = message.count - hmacLength
             
-            if encryptionParameters.blockLength > 0 {
+            if securityParameters.blockLength > 0 {
                 let padding = message.last!
                 let paddingLength = Int(padding) + 1
                 var paddingIsCorrect = (paddingLength < message.count)
@@ -202,7 +160,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             
             let MAC = [UInt8](message[messageLength..<messageLength + hmacLength])
             
-            let messageMAC = self.calculateMessageMAC(secret: encryptionParameters.MACKey, contentType: contentType, data: messageContent, isRead: true)
+            let messageMAC = securityParameters.calculateMessageMAC(secret: encryptionParameters.MACKey, contentType: contentType, data: messageContent, isRead: true)
             
             if let messageMAC = messageMAC, MAC == messageMAC {
                 return messageContent
@@ -218,77 +176,40 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     func finishedMessage() -> TLSHandshakeMessage {
         let encryptedMessage = TLSEncryptedMessage()
         encryptedMessage.version = version
-        if let s = writeEncryptionParameters {
-            let verifyData = verifyDataForFinishedMessage()
-            let MAC = calculateMAC(secret: s.MACKey, data: verifyData, isRead: false)!
-            var plainTextRecordData = verifyData + MAC
+        let s = securityParameters
+        if let write = s.write {
+            let data = verifyDataForFinishedMessage().dataWithBytes()
+            let MAC = s.calculateMessageMAC(secret: write.MACKey, contentType: encryptedMessage.type, data: data, isRead: false)!
+            var myPlantText = data + MAC
             let blockLength = s.blockLength
-            if s.blockLength > 0 {
-                let paddingLength = blockLength - ((plainTextRecordData.count) % blockLength)
+            if blockLength > 0 {
+                let paddingLength = blockLength - ((myPlantText.count) % blockLength)
                 if paddingLength != 0 {
                     let padding = [UInt8](repeating: UInt8(paddingLength - 1), count: paddingLength)
                     
-                    plainTextRecordData.append(contentsOf: padding)
+                    myPlantText.append(contentsOf: padding)
                 }
             }
-            let aes = try? CryptoSwift.AES(key: s.bulkKey, blockMode: CBC(iv: CryptoSwift.AES.randomIV(s.recordIVLength)))
-            encryptedMessage.message = (try? aes?.encrypt(plainTextRecordData)) ?? []
+            
+            write.sequenceNumber += 1
+            let IV = AES.randomIV(s.recordIVLength)
+            let aes = try? AES(key: write.bulkKey, blockMode: CBC(iv: IV), padding: .noPadding)
+            var cipherText: [UInt8] = []
+            if let encrypted = try? aes?.encrypt(myPlantText) {
+                cipherText = IV + encrypted
+            }
+            
+            encryptedMessage.message = cipherText
         }
         return encryptedMessage
-    }
-    
-    private func calculateMessageMAC(secret: [UInt8], contentType : TLSMessageType, data : [UInt8], isRead : Bool) -> [UInt8]?
-    {
-        guard let MACHeader = self.MACHeader(forContentType: contentType, dataLength: data.count, isRead: isRead) else { return nil }
-        
-        return self.calculateMAC(secret: secret, data: MACHeader + data, isRead: isRead)
-    }
-    
-    private func MACHeader(forContentType contentType: TLSMessageType, dataLength: Int, isRead: Bool) -> [UInt8]? {
-        var macData: [UInt8] = []
-        macData.append(0)
-        macData.append(contentType.rawValue)
-        macData.append(contentsOf: version.rawValue.bytes())
-        macData.append(contentsOf: UInt16(dataLength).bytes())
-        
-        return macData
-    }
-    
-    private func calculateMAC(secret : [UInt8], data : [UInt8], isRead : Bool) -> [UInt8]? {
-        var HMAC : (_ secret : [UInt8], _ data : [UInt8]) -> [UInt8]
-        if let algorithm = isRead ? self.readEncryptionParameters?.hmac : self.writeEncryptionParameters?.hmac {
-            switch (algorithm)
-            {
-            case .hmac_md5:
-                HMAC = HMAC_MD5
-                
-            case .hmac_sha1:
-                HMAC = HMAC_SHA1
-                
-            case .hmac_sha256:
-                HMAC = HMAC_SHA256
-                
-            case .hmac_sha384:
-                HMAC = HMAC_SHA384
-                
-            case .hmac_sha512:
-                HMAC = HMAC_SHA512
-            }
-        }
-        else {
-            return nil
-        }
-        
-        return HMAC(secret, data)
     }
     
     func tlsResponse(_ msg: TLSHandshakeMessage?) -> Void {
         if let msg = msg {
             if msg is TLSServerHello {
                 let serverHello = msg as! TLSServerHello
-                serverRandom = serverHello.random.randomBytes
+                securityParameters.serverRandom = serverHello.random.dataWithBytes()
                 cipherSuite = serverHello.cipherSuite
-                setPendingSecurityParametersForCipherSuite(serverHello.cipherSuite)
             }
             if msg is TLSChangeCipherSpec {
                 let changeCipher = msg as! TLSChangeCipherSpec

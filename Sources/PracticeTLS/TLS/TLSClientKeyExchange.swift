@@ -10,20 +10,17 @@ import SecurityRSA
 
 class EncryptedPreMasterSecret {
     var preLength: UInt16 = 0
+    var encryptedPreMaster: [UInt8] = []
     var preMasterKey: [UInt8] = []
     init(_ stream: DataStream) {
         preLength = stream.readUInt16()!
-        BigInt.withContext { _ in
-            let encryptedPreMaster = stream.read(count: Int(preLength))!
-            let rsa = RSAEncryptor()
-            do {
-                let preMasterSecret = try rsa.decryptData(data: encryptedPreMaster)
-                let preStream = DataStream(Data(preMasterSecret))
-                //self.clientVersion = TLSVersion(rawValue: preStream.readUInt16()!)
-                self.preMasterKey = preStream.read(count: 48) ?? []
-            } catch {
-                LogError("预备密匙解密失败：\(error)")
-            }
+        encryptedPreMaster = stream.read(count: Int(preLength))!
+        let rsa = RSAEncryptor()
+        do {
+            let preMasterSecret = try rsa.decryptData(data: encryptedPreMaster)
+            self.preMasterKey = preMasterSecret
+        } catch {
+            LogError("预备密匙解密失败：\(error)")
         }
     }
 }
@@ -48,5 +45,14 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
     override func responseMessage() -> TLSHandshakeMessage? {
         let res = TLSChangeCipherSpec()
         return res
+    }
+    
+    override func messageData() -> [UInt8] {
+        var bytes:[UInt8] = []
+        bytes.append(handshakeType.rawValue)
+        bytes.append(contentsOf: UInt(bodyLength).bytes()[1...3])
+        bytes.append(contentsOf: preMasterSecret.preLength.bytes())
+        bytes.append(contentsOf: preMasterSecret.encryptedPreMaster)
+        return bytes
     }
 }

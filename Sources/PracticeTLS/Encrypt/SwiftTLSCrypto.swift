@@ -8,14 +8,6 @@
 
 import Foundation
 
-extension AES : Cryptor {
-    func update(inputBlock: MemoryBlock, outputBlock: inout MemoryBlock) -> Bool {
-        update(indata: inputBlock.block, outdata: &outputBlock.block)
-        
-        return true
-    }
-}
-
 public enum CipherAlgorithm
 {
     case null
@@ -47,46 +39,6 @@ public enum CipherAlgorithm
 public enum BlockCipherMode {
     case cbc
     case gcm
-}
-
-extension BlockCipher {
-    class func encryptionBlockCipher(_ cipherAlgorithm : CipherAlgorithm, mode: BlockCipherMode, key : [UInt8]) -> BlockCipher?
-    {
-        let aes: AES
-        switch cipherAlgorithm {
-        case .aes128:
-            aes = AES(key: key, bitSize: .aes128, encrypt: true)
-            
-        case .aes256:
-            aes = AES(key: key, bitSize: .aes256, encrypt: true)
-
-        default:
-            fatalError("Unsupported cipher algorithm \(cipherAlgorithm)")
-        }
-        
-        let cipher = BlockCipher(encrypt: true, cryptor: aes, mode: mode, cipher: cipherAlgorithm)
-        
-        return cipher
-    }
-    
-    class func decryptionBlockCipher(_ cipherAlgorithm : CipherAlgorithm, mode: BlockCipherMode, key : [UInt8]) -> BlockCipher?
-    {
-        let aes: AES
-        switch cipherAlgorithm {
-        case .aes128:
-            aes = AES(key: key, bitSize: .aes128, encrypt: (mode == .gcm))
-            
-        case .aes256:
-            aes = AES(key: key, bitSize: .aes256, encrypt: (mode == .gcm))
-            
-        default:
-            fatalError("Unsupported cipher algorithm \(cipherAlgorithm)")
-        }
-
-        let cipher = BlockCipher(encrypt: false, cryptor: aes, mode: mode, cipher: cipherAlgorithm)
-        
-        return cipher
-    }
 }
 
 func HMAC_MD5(_ secret : [UInt8], data : [UInt8]) -> [UInt8]

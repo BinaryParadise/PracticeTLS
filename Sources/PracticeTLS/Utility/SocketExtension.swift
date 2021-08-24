@@ -44,7 +44,7 @@ extension Array where Element == UInt8 {
 
   public func toHexArray() -> String {
     `lazy`.reduce(into: "") {
-      var s = String($1, radix: 16)
+        var s = String($1, radix: 16).uppercased()
       if s.count == 1 {
         s = "0" + s
       }

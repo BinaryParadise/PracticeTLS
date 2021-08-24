@@ -13,7 +13,7 @@ class TLSSessionManager {
     var sessions: [Int32 : TLSConnection] = [:]
     
     init() {
-        identity = PEMFileIdentity(certificateFile: Bundle.certBundle().path(forResource: "Cert/localhost.crt", ofType: nil)!, privateKeyFile: Bundle.certBundle().path(forResource: "Cert/private.pem", ofType: nil)!)!
+        identity = PEMFileIdentity(certificateFile: Bundle.certBundle().path(forResource: "Cert/localhost.crt", ofType: nil)!, privateKeyFile: Bundle.certBundle().path(forResource: "Cert/private.pem", ofType: nil)!)! as! Identity
     }
     
     func acceptConnection(_ connection: TLSConnection) {

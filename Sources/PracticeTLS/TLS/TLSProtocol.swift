@@ -8,14 +8,14 @@
 import Foundation
 
 /// 报文类型
-enum TLSMessageType: UInt8 {
+public enum TLSMessageType: UInt8 {
     case changeCipherSpec = 20
     case alert            = 21
     case handeshake       = 22
     case applicatonData   = 23
 }
 
-struct TLSVersion: Comparable {
+public struct TLSVersion: Comparable {
     
     public typealias RawValue = UInt16
     
@@ -35,7 +35,7 @@ struct TLSVersion: Comparable {
     public static let V1_2 = TLSVersion(rawValue: 0x0303)
     public static let V1_3 = TLSVersion(rawValue: 0x0304)
         
-    static func < (lhs: TLSVersion, rhs: TLSVersion) -> Bool {
+    public static func < (lhs: TLSVersion, rhs: TLSVersion) -> Bool {
         return lhs.rawValue == rhs.rawValue
     }
     
@@ -70,14 +70,23 @@ enum TLSHandshakeType: UInt8 {
 
 enum TLSExtensionType: UInt16 {
     case statusRequest = 0x0005
+    case renegotiation_info = 0xff01
+
 }
 
 struct TLSExtension {
     var type: TLSExtensionType
     var length: UInt16
+    var ext: [UInt8]
+    
+    init(type: TLSExtensionType = .renegotiation_info, length: UInt16 = 1, ext: [UInt8] = []) {
+        self.type = type
+        self.length = length
+        self.ext = ext
+    }
     
     var bytes: [UInt8] {
-        return type.rawValue.bytes() + length.bytes()
+        return type.rawValue.bytes() + length.bytes() + ext
     }
 }
 

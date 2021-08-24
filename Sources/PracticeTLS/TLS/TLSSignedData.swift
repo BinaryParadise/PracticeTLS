@@ -99,7 +99,7 @@ struct TLSSignedData: Streamable {
     
     init(data: [UInt8]) {
         do {
-            try signature = TLSSessionManager.shared.identity.signer(with: hashAlgorithm).sign(data: data)
+            try signature = TLSSessionManager.shared.identity.signer(with: hashAlgorithm)?.sign(data: data) ?? data
         } catch {
             LogError("签名失败: \(error)")
         }
