@@ -86,7 +86,7 @@ struct TLSExtension {
     }
     
     var bytes: [UInt8] {
-        return type.rawValue.bytes() + length.bytes() + ext
+        return type.rawValue.bytes + length.bytes + ext
     }
 }
 

@@ -24,14 +24,14 @@ class TLSServerHelloDone: TLSHandshakeMessage {
         var bytes:[UInt8] = []
         //header
         bytes.append(type.rawValue) // 1 byte
-        bytes.append(contentsOf: version.rawValue.bytes()) // 2 bytes
-        bytes.append(contentsOf: UInt16(contentLength).bytes()) // 2 bytes
+        bytes.append(contentsOf: version.rawValue.bytes) // 2 bytes
+        bytes.append(contentsOf: UInt16(contentLength).bytes) // 2 bytes
         
         //bytes.append(contentsOf: TLSServerKeyExchange().dataWithBytes())
         
         //body
         bytes.append(handshakeType.rawValue) // 1 byte
-        bytes.append(contentsOf: UInt(bodyLength).bytes()[1..<4]) //3 bytes
+        bytes.append(contentsOf: UInt(bodyLength).bytes[1..<4]) //3 bytes
         return bytes
     }
 }

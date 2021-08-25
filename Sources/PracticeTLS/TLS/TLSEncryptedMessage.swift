@@ -24,8 +24,8 @@ class TLSEncryptedMessage: TLSHandshakeMessage {
     override func dataWithBytes() -> [UInt8] {
         var data:[UInt8] = []
         data.append(type.rawValue)
-        data.append(contentsOf: version.rawValue.bytes())
-        data.append(contentsOf: UInt16(message.count).bytes())
+        data.append(contentsOf: version.rawValue.bytes)
+        data.append(contentsOf: UInt16(message.count).bytes)
         data.append(contentsOf: message)
         return data
     }

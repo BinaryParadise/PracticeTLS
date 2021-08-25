@@ -41,19 +41,19 @@ public class TLSServerHello: TLSHandshakeMessage {
         var bytes:[UInt8] = []
         //header
         bytes.append(type.rawValue) // 1 byte
-        bytes.append(contentsOf: version.rawValue.bytes()) // 2 bytes
-        bytes.append(contentsOf: UInt16(contentLength).bytes()) // 2 bytes
+        bytes.append(contentsOf: version.rawValue.bytes) // 2 bytes
+        bytes.append(contentsOf: UInt16(contentLength).bytes) // 2 bytes
         
         //body
         bytes.append(handshakeType.rawValue) // 1 byte
-        bytes.append(contentsOf: UInt(bodyLength).bytes()[1..<4]) //3 bytes
-        bytes.append(contentsOf: clientVersion.rawValue.bytes()) //2 bytes
+        bytes.append(contentsOf: UInt(bodyLength).bytes[1..<4]) //3 bytes
+        bytes.append(contentsOf: clientVersion.rawValue.bytes) //2 bytes
         bytes.append(contentsOf: random.dataWithBytes()) //32 bytes
         bytes.append(UInt8(truncatingIfNeeded: sessionID?.count ?? 0)) //1 byte
-        bytes.append(contentsOf: cipherSuite.rawValue.bytes()) //2 bytes
+        bytes.append(contentsOf: cipherSuite.rawValue.bytes) //2 bytes
         bytes.append(compressionMethod.rawValue) //1 byte
         if extensions.count > 0 {
-            bytes.append(contentsOf: extLen.bytes()) //2 bytes
+            bytes.append(contentsOf: extLen.bytes) //2 bytes
             extensions.forEach { ext in
                 bytes.append(contentsOf: ext.bytes)
             }

@@ -24,8 +24,8 @@ class TLSChangeCipherSpec: TLSHandshakeMessage {
     override func dataWithBytes() -> [UInt8] {
         var data: [UInt8] = []
         data.append(type.rawValue)
-        data.append(contentsOf: version.rawValue.bytes())
-        data.append(contentsOf: contentLength.bytes())
+        data.append(contentsOf: version.rawValue.bytes)
+        data.append(contentsOf: contentLength.bytes)
         data.append(0x01)
         return data
     }

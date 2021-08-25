@@ -20,9 +20,13 @@ class TLSFinished: TLSHandshakeMessage {
     }
     
     override func dataWithBytes() -> [UInt8] {
+        return messageData()
+    }
+    
+    override func messageData() -> [UInt8] {
         var bytes: [UInt8] = []
         bytes.append(handshakeType.rawValue)
-        bytes.append(contentsOf: UInt(verifyData.count).bytes()[1...3])
+        bytes.append(contentsOf: UInt(verifyData.count).bytes[1...3])
         bytes.append(contentsOf: verifyData)
         return bytes
     }

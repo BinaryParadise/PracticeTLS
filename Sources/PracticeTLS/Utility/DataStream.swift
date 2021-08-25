@@ -86,7 +86,7 @@ class DataStream {
 }
 
 extension UInt {
-    func bytes() -> [UInt8] {
+    var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 24),
                 UInt8(truncatingIfNeeded: self >> 16),
                 UInt8(truncatingIfNeeded: self >> 8),
@@ -95,7 +95,7 @@ extension UInt {
 }
 
 extension UInt64 {
-    func bytes() -> [UInt8] {
+    var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 56),
                 UInt8(truncatingIfNeeded: self >> 48),
                 UInt8(truncatingIfNeeded: self >> 40),
@@ -108,7 +108,7 @@ extension UInt64 {
 }
 
 extension UInt16 {
-    func bytes() -> [UInt8] {
+    var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 8),
                 UInt8(truncatingIfNeeded: self)]
     }

@@ -50,8 +50,8 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
     override func messageData() -> [UInt8] {
         var bytes:[UInt8] = []
         bytes.append(handshakeType.rawValue)
-        bytes.append(contentsOf: UInt(bodyLength).bytes()[1...3])
-        bytes.append(contentsOf: preMasterSecret.preLength.bytes())
+        bytes.append(contentsOf: UInt(bodyLength).bytes[1...3])
+        bytes.append(contentsOf: preMasterSecret.preLength.bytes)
         bytes.append(contentsOf: preMasterSecret.encryptedPreMaster)
         return bytes
     }

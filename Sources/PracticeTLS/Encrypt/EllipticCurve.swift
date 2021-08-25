@@ -101,7 +101,7 @@ public enum NamedGroup : UInt16 {
 
 extension NamedGroup : Streamable {
     func dataWithBytes() -> [UInt8] {
-        return rawValue.bytes()
+        return rawValue.bytes
     }
 }
 

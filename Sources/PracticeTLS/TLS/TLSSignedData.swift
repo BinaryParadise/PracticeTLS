@@ -109,7 +109,7 @@ struct TLSSignedData: Streamable {
         var data:[UInt8] = []
         data.append(hashAlgorithm.rawValue)
         data.append(signatureAlgorithm.rawValue)
-        data.append(contentsOf: UInt16(signature.count).bytes())
+        data.append(contentsOf: UInt16(signature.count).bytes)
         data.append(contentsOf: signature)
         return data
     }

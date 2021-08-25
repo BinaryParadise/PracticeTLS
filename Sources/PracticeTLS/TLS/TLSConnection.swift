@@ -55,12 +55,12 @@ class TLSConnection: NSObject {
         s.transformParamters()
     }
     
-    func verifyDataForFinishedMessage(isClient: Bool = false) -> TLSFinished {
+    func verifyDataForFinishedMessage(isClient: Bool) -> TLSFinished {
         let finishedLabel = isClient ? TLSClientFinishedLabel : TLSServerFinishedLabel
         var handshakeData: [UInt8] = []
         for msg in handshakeMessages {
             let d = msg.messageData()
-            print("msg => \(d.count)")
+            print("//msg => \(d.count)")
             handshakeData.append(contentsOf: d)
         }
         print("handshakeData => \(handshakeData.count)")
@@ -80,8 +80,11 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             case .changeCipherSpec:
                 break
             case .alert:
-                LogError("alert")
-                sock.disconnectAfterReadingAndWriting()
+                if let d = securityParameters.decrypt([UInt8](data[5...]), contentType: type) {
+                    if let alert = TLSAlert(stream: DataStream(data[0...4]+d)) {
+                        LogError("alert: \(alert.level) -> \(alert.alertType)")
+                    }
+                }
                 break
             case .handeshake:
                 if let msg = TLSHandshakeMessage.fromData(data: data) {
@@ -96,11 +99,15 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                         let exchange = msg as! TLSClientKeyExchange
                         preMasterKey = exchange.preMasterSecret.preMasterKey
                         setPendingSecurityParametersForCipherSuite(cipherSuite!)
+                        handshakeMessages.append(msg)
+                        
                         if let em = exchange.encryptedMessage {
-                            _ = decryptAndVerifyMAC(contentType: em.type, data: em.message)
+                            securityParameters.clientVerifyData = decryptAndVerifyMAC(contentType: em.type, data: em.message) ?? []
+                            //大坑：客户端的finish也需要包含在校验的握手消息中⚠️⚠️⚠️⚠️⚠️
+                            let clientFinishedMsg = verifyDataForFinishedMessage(isClient: true)
+                            handshakeMessages.append(clientFinishedMsg)
                             securityParameters.read?.sequenceNumber += 1
                         }
-                        handshakeMessages.append(msg)
                         tlsResponse(msg.responseMessage())
                     default: break
                     }
@@ -114,93 +121,18 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     }
     
     private func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) -> [UInt8]? {
-        guard let encryptionParameters = securityParameters.read else { return nil }
-        let IV = [UInt8](data[0..<securityParameters.recordIVLength])
-        let cipherText = [UInt8](data[securityParameters.recordIVLength...])
-        
-                            
-        assert(IV+cipherText == data)
-        let aes = try? CryptoSwift.AES(key: encryptionParameters.bulkKey, blockMode: CBC(iv: IV), padding: .noPadding)
-        
-        var message: [UInt8]?
-        
-        do {
-            message = try aes?.decrypt(cipherText)
-            assert(message!.first == 20)
-        } catch {
-            LogError("\(error)")
-        }
-        
-        print("let preMasterSecret:[UInt8] = [\(preMasterKey.toHexArray())]")
-        print("let masterSecret:[UInt8] = [\(securityParameters.masterSecret.toHexArray())]")
-        print("let clientRandom:[UInt8] = [\(securityParameters.clientRandom.toHexArray())]")
-        print("let serverRandom:[UInt8] = [\(securityParameters.serverRandom.toHexArray())]")
-        print("let bulkKey:[UInt8] = [\(encryptionParameters.bulkKey.toHexArray())]")
-        print("let IV:[UInt8] = [\(IV.toHexArray())]")
-        
-        print("let cipherData:[UInt8] = [\(data.toHexArray())]")
-        
-        if let message = message {            
-            let hmacLength = securityParameters.hmac.size
-            var messageLength = message.count - hmacLength
-            
-            if securityParameters.blockLength > 0 {
-                let padding = message.last!
-                let paddingLength = Int(padding) + 1
-                var paddingIsCorrect = (paddingLength < message.count)
-                paddingIsCorrect = paddingIsCorrect && (message[(message.count - paddingLength) ..< message.count].filter({$0 != padding}).count == 0)
-                if !paddingIsCorrect {
-                    LogError("Error: could not decrypt message")
-                    return nil
-                }
-                messageLength -= paddingLength
-            }
-            
-            let messageContent = [UInt8](message[0..<messageLength])
-            
-            let MAC = [UInt8](message[messageLength..<messageLength + hmacLength])
-            
-            let messageMAC = securityParameters.calculateMessageMAC(secret: encryptionParameters.MACKey, contentType: contentType, data: messageContent, isRead: true)
-            
-            if let messageMAC = messageMAC, MAC == messageMAC {
-                return messageContent
-            }
-            else {
-                LogError("Error: MAC doesn't match")
-            }
-        }
-        
-        return nil
+        return securityParameters.decrypt(data, contentType: contentType)
     }
     
     func finishedMessage() -> TLSHandshakeMessage {
         let encryptedMessage = TLSEncryptedMessage()
         encryptedMessage.version = version
-        let s = securityParameters
-        if let write = s.write {
-            let data = verifyDataForFinishedMessage().dataWithBytes()
-            let MAC = s.calculateMessageMAC(secret: write.MACKey, contentType: encryptedMessage.type, data: data, isRead: false)!
-            var myPlantText = data + MAC
-            let blockLength = s.blockLength
-            if blockLength > 0 {
-                let paddingLength = blockLength - ((myPlantText.count) % blockLength)
-                if paddingLength != 0 {
-                    let padding = [UInt8](repeating: UInt8(paddingLength - 1), count: paddingLength)
-                    
-                    myPlantText.append(contentsOf: padding)
-                }
-            }
-            
-            write.sequenceNumber += 1
-            let IV = AES.randomIV(s.recordIVLength)
-            let aes = try? AES(key: write.bulkKey, blockMode: CBC(iv: IV), padding: .noPadding)
-            var cipherText: [UInt8] = []
-            if let encrypted = try? aes?.encrypt(myPlantText) {
-                cipherText = IV + encrypted
-            }
-            
-            encryptedMessage.message = cipherText
-        }
+        
+        let data = verifyDataForFinishedMessage(isClient: false).dataWithBytes()
+        securityParameters.serverVerifyData = data
+        let encrypted = securityParameters.encrypt(data, contentType: encryptedMessage.type)
+        securityParameters.write?.sequenceNumber += 1
+        encryptedMessage.message = encrypted ?? []
         return encryptedMessage
     }
     
