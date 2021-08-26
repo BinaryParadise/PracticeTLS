@@ -10,13 +10,16 @@ import CocoaAsyncSocket
 /// 数据读写标记
 enum RWTags {
     case handshake(TLSHandshakeType)
+    case content(TLSMessageType)
     case http
     
     init(rawValue: UInt8) {
         if rawValue == 0 {
             self = .http
+        } else if rawValue > TLSHandshakeType.finished.rawValue {
+            self = .content(TLSMessageType(rawValue: rawValue-50)!)
         } else {
-            self = .handshake(TLSHandshakeType(rawValue: rawValue) ?? .clientHello)
+            self = .handshake(TLSHandshakeType(rawValue: rawValue)!)
         }
     }
     
@@ -24,6 +27,8 @@ enum RWTags {
         switch self {
         case .handshake(let handshakeType):
             return Int(handshakeType.rawValue)
+        case .content(let type):
+            return Int(type.rawValue+50)
         case .http:
             return Int(UInt8.zero)
         }
@@ -32,11 +37,11 @@ enum RWTags {
 
 extension GCDAsyncSocket {
     func readData(tag: RWTags) -> Void {
-        readData(withTimeout: 5, tag: tag.rawValue)
+        readData(withTimeout: 10, tag: tag.rawValue)
     }
     
     func writeData(data: [UInt8]?, tag: RWTags) -> Void {
-        write(Data(data ?? []), withTimeout: 5, tag: tag.rawValue)
+        write(Data(data ?? []), withTimeout: 10, tag: tag.rawValue)
     }
 }
 

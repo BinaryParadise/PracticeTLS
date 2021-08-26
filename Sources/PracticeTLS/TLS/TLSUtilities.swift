@@ -41,6 +41,17 @@ enum CipherSuite: UInt16 {
     case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
     case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x3d
     case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
+    
+    var description: String {
+        switch self {
+        case .TLS_RSA_WITH_AES_256_CBC_SHA:
+            return "TLS_RSA_WITH_AES_256_CBC_SHA"
+        case .TLS_RSA_WITH_AES_256_CBC_SHA256:
+            return "TLS_RSA_WITH_AES_256_CBC_SHA256"
+        case .TLS_RSA_WITH_AES_128_GCM_SHA256:
+            return "TLS_RSA_WITH_AES_128_GCM_SHA256"
+        }
+    }
 }
 
 enum CompressionMethod: UInt8 {

@@ -16,11 +16,12 @@ public class HTTPServer: NSObject {
         super.init()
         tlsEnabled = tls
         socket = GCDAsyncSocket(delegate: self, delegateQueue: DispatchQueue.global())
+        socket?.isIPv6Enabled = false
     }
     
     @discardableResult public func start(port: UInt16) -> Self {
         do {
-            try socket?.accept(onPort: port)
+            try socket?.accept(onInterface: "bridge100", port: port)
         } catch {
             LogError(error.localizedDescription)
         }
@@ -76,8 +77,6 @@ extension HTTPServer: GCDAsyncSocketDelegate {
     }
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
-        if let err = err {
-            LogError("\(err)")
-        }
+        LogInfo("\(err)")
     }
 }
