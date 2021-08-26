@@ -13,12 +13,13 @@ public class TLSServerHello: TLSHandshakeMessage {
     var random: Random = Random()
     var sessionID: String?
     /// 必须选择客户端支持的加密套件，此处仅实现一种
-    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
+    var cipherSuite: CipherSuite
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = [] //[.init(type: .renegotiation_info, length: 1, ext: [0])]
     let extLen: UInt16 = 0
 
     override init() {
+        cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
         super.init()
         type = .handeshake
         handshakeType = .serverHello

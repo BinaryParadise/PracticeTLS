@@ -21,11 +21,11 @@ public class HTTPServer: NSObject {
     
     @discardableResult public func start(port: UInt16) -> Self {
         do {
-            try socket?.accept(onInterface: "bridge100", port: port)
+            try socket?.accept(onPort: port)
         } catch {
             LogError(error.localizedDescription)
         }
-        print("start \(TLSSessionManager.shared.identity.certificateChain.first?.signatureAlgorithm)")
+        print("start \(String(describing: TLSSessionManager.shared.identity.certificateChain.first?.signatureAlgorithm))")
         return self
     }
     

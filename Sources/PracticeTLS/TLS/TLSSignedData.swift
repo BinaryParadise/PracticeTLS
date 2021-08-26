@@ -90,27 +90,3 @@ enum SignatureAlgorithm : UInt8 {
     case dsa        = 2
     case ecdsa      = 3
 }
-
-struct TLSSignedData: Streamable {
-    var hashAlgorithm : HashAlgorithm = .sha256
-    var signatureAlgorithm : SignatureAlgorithm = .rsa
-    
-    var signature : [UInt8] = []
-    
-    init(data: [UInt8]) {
-        do {
-            try signature = TLSSessionManager.shared.identity.signer(with: hashAlgorithm)?.sign(data: data) ?? data
-        } catch {
-            LogError("签名失败: \(error)")
-        }
-    }
-    
-    func dataWithBytes() -> [UInt8] {
-        var data:[UInt8] = []
-        data.append(hashAlgorithm.rawValue)
-        data.append(signatureAlgorithm.rawValue)
-        data.append(contentsOf: UInt16(signature.count).bytes)
-        data.append(contentsOf: signature)
-        return data
-    }
-}

@@ -36,8 +36,8 @@ public enum TLSError : Error
     case error(String)
 }
 
+/// [密钥交换算法] + 签名算法 + 对称加密算法 + 摘要算法
 enum CipherSuite: UInt16 {
-    /// 密钥交换算法 + 签名算法 + 对称加密算法 + 摘要算法
     case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
     case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x3d
     case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c

@@ -10,14 +10,15 @@ import CryptoSwift
 
 public class TLSSecurityParameters
 {
-    public var version: TLSVersion = .V1_2
-    public var bulkCipherAlgorithm : CipherAlgorithm = .aes256
-    public var blockCipherMode : BlockCipherMode = .cbc
-    public var cipherType : CipherType = .block
+    public var version: TLSVersion
+    public var bulkCipherAlgorithm : CipherAlgorithm
+    public var blockCipherMode : BlockCipherMode
+    public var cipherType : CipherType
     public var encodeKeyLength : Int = 0
     public var blockLength : Int = 0
     public var fixedIVLength : Int = 0
     public var recordIVLength : Int = 0
+    public var hashAlgorithm: HashAlgorithm = .sha256
     public var hmac: MACAlgorithm
     public var preMasterSecret: [UInt8] = []
     public var masterSecret : [UInt8] = []
@@ -49,13 +50,13 @@ public class TLSSecurityParameters
             """
     }
     
-    init() {
-        guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[.TLS_RSA_WITH_AES_256_CBC_SHA256]
+    init(_ cipherSuite: CipherSuite) {
+        guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[cipherSuite]
             else {
                 fatalError("Unsupported cipher suite")
         }
         let cipherAlgorithm = cipherSuiteDescriptor.bulkCipherAlgorithm
-        
+        version             = cipherSuiteDescriptor.supportedProtocolVersions.first!
         bulkCipherAlgorithm = cipherAlgorithm
         blockCipherMode     = cipherSuiteDescriptor.blockCipherMode
         cipherType          = cipherSuiteDescriptor.cipherType
@@ -101,11 +102,11 @@ public class TLSSecurityParameters
     }
     
     private func masterSecret(_ preMasterKey: [UInt8], seed: [UInt8]) -> [UInt8] {
-        return PRF(secret: preMasterKey, label: [UInt8]("master secret".utf8), seed: seed, outputLength: 48)
+        return P_hash(hashAlgorithm.macAlgorithm.hmacFunction, secret: preMasterKey, seed: [UInt8]("master secret".utf8)+seed, outputLength: 48)
     }
     
     public func PRF(secret : [UInt8], label : [UInt8], seed : [UInt8], outputLength : Int) -> [UInt8] {
-        return P_hash(hmac.hmacFunction, secret: secret, seed: label + seed, outputLength: outputLength)
+        return P_hash(hashAlgorithm.macAlgorithm.hmacFunction, secret: secret, seed: label + seed, outputLength: outputLength)
     }
     
     public func calculateMessageMAC(secret: [UInt8], contentType : TLSMessageType, data : [UInt8], isRead : Bool) -> [UInt8]?
@@ -119,7 +120,7 @@ public class TLSSecurityParameters
         var macData: [UInt8] = []
         macData.append(contentsOf: encryptionParameters.sequenceNumber.bytes)
         macData.append(contentType.rawValue)
-        macData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
+        macData.append(contentsOf: version.rawValue.bytes)
         macData.append(contentsOf: UInt16(dataLength).bytes)
         return macData
     }
@@ -168,7 +169,7 @@ extension TLSSecurityParameters {
                 paddingIsCorrect = paddingIsCorrect && (message[(message.count - paddingLength) ..< message.count].filter({$0 != padding}).count == 0)
                 if !paddingIsCorrect {
                     LogError("Error: could not decrypt message")
-                    return []
+                    return nil
                 }
                 messageLength -= paddingLength
             }
