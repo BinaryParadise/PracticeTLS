@@ -48,7 +48,7 @@ public class TLSSecurityParameters
             let clientVerifyData:[UInt8] = [\(clientVerifyData.toHexArray())]
             let serverVerifyData:[UInt8] = [\(serverVerifyData.toHexArray())]
             """
-    }
+    }    
     
     init(_ cipherSuite: CipherSuite) {
         guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[cipherSuite]

@@ -14,6 +14,7 @@ public let TLSServerFinishedLabel = [UInt8]("server finished".utf8)
 public let TLSKeyExpansionLabel = [UInt8]("key expansion".utf8)
 
 class TLSConnection: NSObject {
+    var sessionId: [UInt8]
     var sock: GCDAsyncSocket
     var nextMessage: TLSHandshakeMessage?
     var preMasterKey: [UInt8] = []
@@ -21,12 +22,13 @@ class TLSConnection: NSObject {
     var version: TLSVersion = .V1_2
     var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA
     var securityParameters: TLSSecurityParameters
-    var clientWantsMeToCloseTheConnection = true
+    var clientWantsMeToCloseTheConnection = false
     var maximumRecordSize: Int = 256
 
     init(_ sock: GCDAsyncSocket) {
         self.sock = sock
         securityParameters = TLSSecurityParameters(cipherSuite)
+        sessionId = [] //unsupport
         super.init()
         sock.delegate = self
         
@@ -77,11 +79,22 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         LogDebug("\(rtag)")
         switch rtag {
         case .handshake(_):
-            let stream = DataStream(data)
+            if let byte: UInt8 = data.first, let type = TLSMessageType(rawValue: byte) {
+                if type != .handeshake {
+                    socket(sock, didRead: data, withTag: RWTags.content(type).rawValue)
+                    break
+                }
+            }
             if let msg = TLSHandshakeMessage.fromData(data: data) {
                 switch msg {
                 case is TLSClientHello:
                     let clientHello = msg as! TLSClientHello
+                    if let sid = clientHello.sessionID {
+                        if TLSSessionManager.shared.resumeConnection(sid, new: self) {
+                            sendMessage(msg: TLSChangeCipherSpec())
+                            break
+                        }
+                    }
                     if clientHello.cipherSuites.contains(.TLS_RSA_WITH_AES_256_CBC_SHA256) {
                         cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
                     }
@@ -143,7 +156,11 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                     }
                 }
             } else if contentType == .alert {
-                if let d = securityParameters.decrypt([UInt8](data[5...]), contentType: contentType) {
+                if data.count < securityParameters.recordIVLength {
+                    if let alert = TLSAlert(stream: DataStream(data)) {
+                        LogError("alert: \(alert.level) -> \(alert.alertType)")
+                    }
+                } else if let d = securityParameters.decrypt([UInt8](data[5...]), contentType: contentType) {
                     if let alert = TLSAlert(stream: DataStream(data[0...4]+d)) {
                         LogError("alert: \(alert.level) -> \(alert.alertType)")
                     }
@@ -175,6 +192,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         if let msg = msg {
             if msg is TLSServerHello {
                 let serverHello = msg as! TLSServerHello
+                serverHello.sessionID = sessionId
                 securityParameters.serverRandom = serverHello.random.dataWithBytes()
                 serverHello.cipherSuite = cipherSuite
             }
@@ -191,20 +209,16 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     
     func httpsResponse(_ content: String) {
         
-        if content.contains(string: "keep-alive") {
-            clientWantsMeToCloseTheConnection = false
+        if content.contains(string: "Connection: Close") {
+            clientWantsMeToCloseTheConnection = true
         }
         
         let response = """
             HTTP/1.1 200 OK
-            Accept-Ranges: bytes
-            Content-Length: \(content.count)
-            Connection: Close
+            Content-Length: \(content.bytes.count)
+            Connection: keep-alive
             Content-Type: text/html; charset=utf-8
-            Etag: "\(AES.randomIV(8).toHexString())"
-            Last-Modified: Wed, 04 Aug 2021 09:14:15 GMT
-            Server: PracticeTLSTool
-            Date: Thu, 05 Aug 2021 08:02:28 GMT
+            Server: PracticeTLS
             """
             .replacingOccurrences(of: "\n", with: "\r\n")
             .appending("\r\n\r\n")
@@ -267,6 +281,6 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
         LogInfo("\(err)")
-        TLSSessionManager.shared.sessions.removeValue(forKey: sock.socket4FD())
+        //TLSSessionManager.shared.sessions.removeValue(forKey: sessionId)
     }
 }

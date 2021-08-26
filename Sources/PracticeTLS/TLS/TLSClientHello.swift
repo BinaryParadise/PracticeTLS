@@ -13,7 +13,7 @@ public class TLSClientHello: TLSHandshakeMessage {
     var bodyLength: Int = 0
     var clientVersion: TLSVersion
     var random: Random
-    var sessionID: String?
+    var sessionID: [UInt8]?
     var cipherSuites: [CipherSuite] = []
     var compressionMethod: CompressionMethod = .null
     var extensions: [UInt8] = []
@@ -25,7 +25,7 @@ public class TLSClientHello: TLSHandshakeMessage {
         clientVersion = TLSVersion(rawValue: stream.readUInt16() ?? 0)
         random = Random(stream.read(count: 32)!)
         if let len = stream.readByte(), len > 0 {
-            sessionID = String(data: Data(stream.read(count: Int(len)) ?? []), encoding: .utf8)
+            sessionID = stream.read(count: Int(len))
         }
         if let cipherLen = stream.readUInt16() {
             if let bytes = stream.read(count: Int(cipherLen)) {
