@@ -37,7 +37,7 @@ public class TLSCertificate: TLSHandshakeMessage {
         var certificateData: [UInt8] = []
 
         var certificatesList: [UInt8] = []
-        for certificate in TLSSessionManager.shared.identity.certificateChain {
+        for certificate in TLSSessionManager.shared.identity!.certificateChain {
             let certificateData = certificate.data
             certificatesList.append(contentsOf: UInt(certificateData.count).bytes[1...3])
             certificatesList.append(contentsOf: certificateData)

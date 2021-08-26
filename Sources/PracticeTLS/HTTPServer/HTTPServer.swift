@@ -12,9 +12,10 @@ public class HTTPServer: NSObject {
     var socket: GCDAsyncSocket?
     var terminated = false
     var tlsEnabled: Bool = false
-    public init(_ tls: Bool = false) {
+    public init(_ identity: PEMFileIdentity? = nil) {
         super.init()
-        tlsEnabled = tls
+        tlsEnabled = identity != nil
+        TLSSessionManager.shared.identity = identity
         socket = GCDAsyncSocket(delegate: self, delegateQueue: DispatchQueue.global())
         socket?.isIPv6Enabled = false
     }
@@ -25,7 +26,7 @@ public class HTTPServer: NSObject {
         } catch {
             LogError(error.localizedDescription)
         }
-        print("start \(String(describing: TLSSessionManager.shared.identity.certificateChain.first?.signatureAlgorithm))")
+        print("start \(String(describing: TLSSessionManager.shared.identity?.certificateChain.first?.signatureAlgorithm))")
         return self
     }
     

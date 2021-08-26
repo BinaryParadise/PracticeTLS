@@ -4,11 +4,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "PracticeTLSTool",
-    platforms: [.macOS(.v10_12)],
+    name: "PracticeTLS",
+    platforms: [.macOS(.v10_12), .iOS(.v10)],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
-        .executable(name: "PracticeTLSTool", targets: ["PracticeTLSTool"]),
         .library(name: "PracticeTLS", targets: ["PracticeTLS"])
     ],
     dependencies: [
@@ -19,12 +18,8 @@ let package = Package(
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
-            name: "PracticeTLSTool",
-            dependencies: ["PracticeTLS"]),
-        .target(
             name: "PracticeTLS",
-            dependencies: ["CocoaAsyncSocket", "Rainbow", "SecurityRSA", "CryptoSwift"],
-            resources: [.copy("Cert")]),
+            dependencies: ["CocoaAsyncSocket", "Rainbow", "SecurityRSA", "CryptoSwift"]),
         .target(name: "SecurityRSA"),
         .testTarget(
             name: "PracticeTLSTests",

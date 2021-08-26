@@ -9,12 +9,8 @@ import Foundation
 
 class TLSSessionManager {
     static var shared = TLSSessionManager()
-    let identity: Identity
+    var identity: Identity? = nil
     var sessions: [[UInt8] : TLSConnection] = [:]
-    
-    init() {
-        identity = PEMFileIdentity(certificateFile: Bundle.certBundle().path(forResource: "Cert/localhost.crt", ofType: nil)!, privateKeyFile: Bundle.certBundle().path(forResource: "Cert/private.pem", ofType: nil)!)! as! Identity
-    }
     
     func acceptConnection(_ connection: TLSConnection) {
         sessions[connection.sessionId] = connection
