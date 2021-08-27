@@ -41,6 +41,7 @@ enum CipherSuite: UInt16 {
     case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
     case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x3d
     case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA     = 0xc014
     
     var description: String {
         switch self {
@@ -50,12 +51,21 @@ enum CipherSuite: UInt16 {
             return "TLS_RSA_WITH_AES_256_CBC_SHA256"
         case .TLS_RSA_WITH_AES_128_GCM_SHA256:
             return "TLS_RSA_WITH_AES_128_GCM_SHA256"
+        case .TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+            return "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
         }
     }
 }
 
 enum CompressionMethod: UInt8 {
     case null = 0
+}
+
+public enum KeyExchangeAlgorithm
+{
+    case rsa
+    case dhe
+    case ecdhe
 }
 
 typealias HMACFunction = (_ secret : [UInt8], _ data : [UInt8]) -> [UInt8]

@@ -113,3 +113,19 @@ extension UInt16 {
                 UInt8(truncatingIfNeeded: self)]
     }
 }
+
+extension Array where Element == UInt8 {
+    var intValue: Int {
+        var r: Int = 0
+        for (i, item) in reversed().enumerated() {
+            r += Int(item << (i * 8))
+        }
+        return r
+    }
+}
+
+extension Decimal {
+    var int: Int {
+        return NSDecimalNumber(decimal: self).intValue
+    }
+}

@@ -15,27 +15,27 @@ public protocol TLSConnectionDelegate {
 public class TLSSessionManager: NSObject {
     public static var shared = TLSSessionManager()
     public var identity: Identity? = nil
-    var sessions: [[UInt8] : TLSConnection] = [:]
+    var sessions: [Int : TLSConnection] = [:]
     public var delegate: TLSConnectionDelegate?
     
     public func acceptConnection(_ sock: GCDAsyncSocket) {
         let newConnection = TLSConnection(sock)
-        sessions[newConnection.sessionId] = newConnection
+        sessions[sock.hash] = newConnection
         newConnection.handshake()
     }
     
-    /// 会话恢复
+    /// TODO:会话恢复
     func resumeConnection(_ sessionId: [UInt8], new: TLSConnection) -> Bool {
-        if let c = sessions[sessionId] {
-            let p = TLSSecurityParameters(c.cipherSuite)
-            p.preMasterSecret = c.securityParameters.preMasterSecret
-            p.clientRandom = c.securityParameters.clientRandom
-            p.serverRandom = c.securityParameters.serverRandom
-            p.transformParamters()
-            new.sessionId = sessionId
-            new.securityParameters = p
-            return true
-        }
+//        if let c = sessions[sessionId] {
+//            let p = TLSSecurityParameters(c.cipherSuite)
+//            p.preMasterSecret = c.securityParameters.preMasterSecret
+//            p.clientRandom = c.securityParameters.clientRandom
+//            p.serverRandom = c.securityParameters.serverRandom
+//            p.transformParamters()
+//            new.sessionId = sessionId
+//            new.securityParameters = p
+//            return true
+//        }
         return false
     }
 }

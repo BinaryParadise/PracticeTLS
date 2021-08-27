@@ -16,6 +16,7 @@ public enum CipherType {
 
 struct CipherSuiteDescriptor {
     let cipherSuite : CipherSuite
+    let keyExchangeAlgorithm: KeyExchangeAlgorithm
     let bulkCipherAlgorithm : CipherAlgorithm
     let cipherType : CipherType
     let blockCipherMode : BlockCipherMode
@@ -27,6 +28,7 @@ struct CipherSuiteDescriptor {
     public let supportedProtocolVersions: [TLSVersion]
     
     init(cipherSuite: CipherSuite,
+         keyExchangeAlgorithm: KeyExchangeAlgorithm = .rsa,
          bulkCipherAlgorithm: CipherAlgorithm,
          cipherType: CipherType,
          blockCipherMode: BlockCipherMode? = nil,
@@ -38,6 +40,7 @@ struct CipherSuiteDescriptor {
     )
     {
         self.cipherSuite = cipherSuite
+        self.keyExchangeAlgorithm = keyExchangeAlgorithm
         self.bulkCipherAlgorithm = bulkCipherAlgorithm
         self.cipherType = cipherType
         self.blockCipherMode = blockCipherMode ?? .cbc
@@ -76,7 +79,15 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         recordIVLength: 8,
         authTagSize: 16,
         hashFunction: .sha256
-    )
+    ),
+    CipherSuiteDescriptor(
+        cipherSuite: .TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+        keyExchangeAlgorithm: .ecdhe,
+        bulkCipherAlgorithm: .aes256,
+        cipherType: .block,
+        blockCipherMode: .cbc,
+        hashFunction: .sha1
+    ),
 ]
 
 let TLSCipherSuiteDescriptionDictionary : [CipherSuite:CipherSuiteDescriptor] = {

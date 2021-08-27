@@ -12,7 +12,7 @@ class A {
     
 }
 
-let bundle = Bundle(path: "\(Bundle(for: A.self).resourcePath!)/SimpleServer_SimpleServer.bundle")!
+let bundle = Bundle(path: "\(Bundle(for: A.self).resourcePath!)/PracticeTLS_SimpleHTTPServer.bundle")!
 
 let identity = PEMFileIdentity(certificateFile: bundle.path(forResource: "Cert/localhost.crt", ofType: nil)!, privateKeyFile: bundle.path(forResource: "Cert/private.pem", ofType: nil)!)!
 
