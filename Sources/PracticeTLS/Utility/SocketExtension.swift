@@ -37,11 +37,11 @@ enum RWTags {
 
 extension GCDAsyncSocket {
     func readData(tag: RWTags) -> Void {
-        readData(withTimeout: 10, tag: tag.rawValue)
+        readData(withTimeout: 5, tag: tag.rawValue)
     }
     
     func writeData(data: [UInt8]?, tag: RWTags) -> Void {
-        write(Data(data ?? []), withTimeout: 10, tag: tag.rawValue)
+        write(Data(data ?? []), withTimeout: 5, tag: tag.rawValue)
     }
 }
 

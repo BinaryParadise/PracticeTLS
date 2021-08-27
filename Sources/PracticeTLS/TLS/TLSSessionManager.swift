@@ -6,15 +6,22 @@
 //
 
 import Foundation
+import CocoaAsyncSocket
 
-class TLSSessionManager {
-    static var shared = TLSSessionManager()
-    var identity: Identity? = nil
+public protocol TLSConnectionDelegate {
+    func onReceive(application data: [UInt8], userInfo: [String : AnyHashable]) -> [UInt8]?
+}
+
+public class TLSSessionManager: NSObject {
+    public static var shared = TLSSessionManager()
+    public var identity: Identity? = nil
     var sessions: [[UInt8] : TLSConnection] = [:]
+    public var delegate: TLSConnectionDelegate?
     
-    func acceptConnection(_ connection: TLSConnection) {
-        sessions[connection.sessionId] = connection
-        connection.handshake()
+    public func acceptConnection(_ sock: GCDAsyncSocket) {
+        let newConnection = TLSConnection(sock)
+        sessions[newConnection.sessionId] = newConnection
+        newConnection.handshake()
     }
     
     /// 会话恢复

@@ -28,7 +28,7 @@ class TLSConnection: NSObject {
     init(_ sock: GCDAsyncSocket) {
         self.sock = sock
         securityParameters = TLSSecurityParameters(cipherSuite)
-        sessionId = [] //unsupport
+        sessionId = AES.randomIV(16)
         super.init()
         sock.delegate = self
         
@@ -133,26 +133,13 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                 if let msg = TLSEncryptedMessage(stream: DataStream(data)) {
                     if let httpData = securityParameters.decrypt(msg.message, contentType: msg.type) {
                         securityParameters.read?.sequenceNumber += 1
-                        let request = String(bytes: httpData, encoding: .utf8) ?? ""
-                        let content = """
-                            <!DOCTYPE html>
-                            <html lang="en">
-                            <title>Practice TLS</title>
-                            <meta charset="utf-8">
-                            <body>
-                            <pre>
-                            Date: \(Date())
-                            Connection from \(sock.connectedHost ?? "")
-                            TLS Version: \(version.description)
-                            Cipher: \(cipherSuite.description)
-                            
-                            Your Request:
-                            \(request)
-                            
-                            </pre>
-                            </body></html>
-                            """
-                        httpsResponse(content)
+                        if let resData = TLSSessionManager.shared.delegate?.onReceive(application: httpData, userInfo: [                          "Host": sock.connectedHost ?? "",
+                            "TLS Version": version.description,
+                            "Cipher": cipherSuite.description]) {
+                            let encryptedData = securityParameters.encrypt(resData, contentType: .applicatonData, iv: nil) ?? []
+                            securityParameters.write?.sequenceNumber += 1
+                            sendMessage(msg: TLSApplicationData(encryptedData))
+                        }
                     }
                 }
             } else if contentType == .alert {
@@ -192,7 +179,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         if let msg = msg {
             if msg is TLSServerHello {
                 let serverHello = msg as! TLSServerHello
-                serverHello.sessionID = sessionId
+                //TODO:serverHello.sessionID = sessionId
                 securityParameters.serverRandom = serverHello.random.dataWithBytes()
                 serverHello.cipherSuite = cipherSuite
             }
@@ -207,36 +194,13 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         }
     }
     
-    func httpsResponse(_ content: String) {
-        
-        if content.contains(string: "Connection: Close") {
-            clientWantsMeToCloseTheConnection = true
-        }
-        
-        let response = """
-            HTTP/1.1 200 OK
-            Content-Length: \(content.bytes.count)
-            Connection: keep-alive
-            Content-Type: text/html; charset=utf-8
-            Server: PracticeTLS
-            """
-            .replacingOccurrences(of: "\n", with: "\r\n")
-            .appending("\r\n\r\n")
-            .appending(content)
-        LogInfo(response)
-        let resData = Array(response.data(using: .utf8) ?? Data())
-        let encryptedData = securityParameters.encrypt(resData, contentType: .applicatonData, iv: nil) ?? []
-        securityParameters.write?.sequenceNumber += 1
-        sendMessage(msg: TLSApplicationData(encryptedData))
-    }
-    
     func sendMessage(msg: TLSMessage) {
         let data = msg.dataWithBytes()
         if maximumRecordSize < data.count {
             let page = (data.count/maximumRecordSize+(data.count%maximumRecordSize > 0 ? 1:0))
             for i in 0..<page {
                 let cur = data[i*maximumRecordSize..<min(data.count, (i+1)*maximumRecordSize)]
-                sock.write(Data(cur), withTimeout: 5, tag: i == page-1 ? 256: RWTags.content(.applicatonData).rawValue)
+                sock.write(Data(cur), withTimeout: 5, tag: i < page-1 ? 256: RWTags.content(.applicatonData).rawValue)
             }
         } else {
             sock.writeData(data: data, tag: .content(.applicatonData))
@@ -270,7 +234,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             if contentType == .changeCipherSpec {
                 let finishedMessage = finishedMessage()
                 sock.writeData(data: finishedMessage.dataWithBytes(), tag: .handshake(.finished))
-            } else if contentType == .applicatonData {
+            } else if contentType == .applicatonData {                
                 sock.readData(tag: .content(.applicatonData))
             }
             break
@@ -281,6 +245,6 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
         LogInfo("\(err)")
-        //TLSSessionManager.shared.sessions.removeValue(forKey: sessionId)
+        TLSSessionManager.shared.sessions.removeValue(forKey: sessionId)
     }
 }

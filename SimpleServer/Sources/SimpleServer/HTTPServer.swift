@@ -7,6 +7,7 @@
 
 import Foundation
 import CocoaAsyncSocket
+import PracticeTLS
 
 public class HTTPServer: NSObject {
     var socket: GCDAsyncSocket?
@@ -16,6 +17,7 @@ public class HTTPServer: NSObject {
         super.init()
         tlsEnabled = identity != nil
         TLSSessionManager.shared.identity = identity
+        TLSSessionManager.shared.delegate = self
         socket = GCDAsyncSocket(delegate: self, delegateQueue: DispatchQueue.global())
         socket?.isIPv6Enabled = false
     }
@@ -26,7 +28,7 @@ public class HTTPServer: NSObject {
         } catch {
             LogError(error.localizedDescription)
         }
-        print("start \(String(describing: TLSSessionManager.shared.identity?.certificateChain.first?.signatureAlgorithm))")
+        print("start on:\(port)")
         return self
     }
     
@@ -36,14 +38,52 @@ public class HTTPServer: NSObject {
     }
 }
 
+extension HTTPServer: TLSConnectionDelegate {
+    public func onReceive(application data: [UInt8], userInfo: [String : AnyHashable]) -> [UInt8]? {
+        let request = String(bytes: data, encoding: .utf8) ?? ""
+        let content = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <title>Practice TLS</title>
+            <meta charset="utf-8">
+            <body>
+            <pre>
+            Date: \(Date())
+            \(userInfo)
+            
+            Your Request:
+            \(request)
+            
+            </pre>
+            </body></html>
+            """
+        
+//        if content.contains(string: "Connection: Close") {
+//            clientWantsMeToCloseTheConnection = true
+//        }
+        
+        let response = """
+            HTTP/1.1 200 OK
+            Content-Length: \(content.bytes.count)
+            Connection: keep-alive
+            Content-Type: text/html; charset=utf-8
+            Server: PracticeTLS
+            """
+            .replacingOccurrences(of: "\n", with: "\r\n")
+            .appending("\r\n\r\n")
+            .appending(content)
+        LogInfo(response)
+        return Array(response.bytes)
+    }
+}
+
 extension HTTPServer: GCDAsyncSocketDelegate {
     public func socket(_ sock: GCDAsyncSocket, didAcceptNewSocket newSocket: GCDAsyncSocket) {
         LogInfo("")
-        
         if tlsEnabled {
-            TLSSessionManager.shared.acceptConnection(TLSConnection(newSocket))
+            TLSSessionManager.shared.acceptConnection(newSocket)
         } else {
-            newSocket.readData(tag: .http)
+            newSocket.readData(withTimeout: 5, tag: 0)
         }
     }
     
@@ -64,6 +104,8 @@ extension HTTPServer: GCDAsyncSocketDelegate {
             Server: Caddy
             Date: Thu, 05 Aug 2021 08:02:28 GMT
             """
+            .replacingOccurrences(of: "\n", with: "\r\n")
+            .appending("\r\n\r\n")
         if let request = String(data: data, encoding: .utf8) {
             if request.contains(string: "Upgrade-Insecure-Requests") {
                 //response += "Content-Security-Policy: upgrade-insecure-requests\n"
@@ -71,10 +113,9 @@ extension HTTPServer: GCDAsyncSocketDelegate {
             LogInfo(request)
         }
         response += """
-
             \(content)
             """
-        sock.writeData(data: Array(response.data(using: .utf8) ?? Data()), tag: .http)
+        sock.write(response.data(using: .utf8) ?? Data(), withTimeout: 5, tag: 0)
     }
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
