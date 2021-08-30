@@ -12,7 +12,7 @@ protocol Streamable {
 }
 
 /// Data读取流
-class DataStream {
+public class DataStream {
     private var origin: [UInt8] = []
     var data: [UInt8] {
         return origin
@@ -21,21 +21,21 @@ class DataStream {
     /// 当前读取位置，默认为0
     var position: Int = 0
     
-    init(_ data: Data) {
+    public init(_ data: Data) {
         self.origin = data.bytes
     }
     
-    init(_ bytes: [UInt8]) {
+    public init(_ bytes: [UInt8]) {
         self.origin = bytes
     }
     
     /// 重置读取
-    func reset() {
+    public func reset() {
         position = 0
     }
     
     ///读取指定数量字节
-    func read(count: Int) -> [UInt8]? {
+    public func read(count: Int) -> [UInt8]? {
         if position+count <= origin.count {
             let bytes = [UInt8](origin[position..<position+count])
             position += bytes.count
@@ -46,7 +46,7 @@ class DataStream {
     }
     
     /// 读取到结束后重置到初始位置
-    func readToEnd() -> [UInt8]? {
+    public func readToEnd() -> [UInt8]? {
         if position < origin.count {
             let bytes = [UInt8](origin[position..<origin.count])
             reset()
@@ -56,12 +56,12 @@ class DataStream {
     }
     
     /// 读取一个字节
-    func readByte() -> UInt8? {
+    public func readByte() -> UInt8? {
         return read(count: 1)?.first
     }
     
     /// 读取两个字节
-    func readUInt16() -> UInt16? {
+    public func readUInt16() -> UInt16? {
         if let bytes = read(count: 2) {
             return UInt16(bytes[0]) << 8 + UInt16(bytes[1])
         }
@@ -69,7 +69,7 @@ class DataStream {
     }
     
     /// 读取三个字节
-    func readUInt24() -> Int? {
+    public func readUInt24() -> Int? {
         if let bytes = read(count: 3) {
             return Int(bytes[0]) << 16 + Int(bytes[1]) << 8 + Int(bytes[2])
         }
@@ -77,7 +77,7 @@ class DataStream {
     }
     
     ///读取四个字节
-    func readUInt() -> UInt? {
+    public func readUInt() -> UInt? {
         if let bytes = read(count: 4) {
             return UInt(bytes[0])  << 24 + UInt(bytes[1])  << 16 + UInt(bytes[2]) << 8 + UInt(bytes[3])
         }
@@ -86,7 +86,7 @@ class DataStream {
 }
 
 extension UInt {
-    var bytes: [UInt8] {
+    public var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 24),
                 UInt8(truncatingIfNeeded: self >> 16),
                 UInt8(truncatingIfNeeded: self >> 8),
@@ -95,7 +95,7 @@ extension UInt {
 }
 
 extension UInt64 {
-    var bytes: [UInt8] {
+    public var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 56),
                 UInt8(truncatingIfNeeded: self >> 48),
                 UInt8(truncatingIfNeeded: self >> 40),
@@ -108,17 +108,25 @@ extension UInt64 {
 }
 
 extension UInt16 {
-    var bytes: [UInt8] {
+    public var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 8),
                 UInt8(truncatingIfNeeded: self)]
     }
 }
 
 extension Array where Element == UInt8 {
-    var intValue: Int {
+    public var intValue: Int {
         var r: Int = 0
         for (i, item) in reversed().enumerated() {
             r += Int(item << (i * 8))
+        }
+        return r
+    }
+    
+    public var int64Value: Int64 {
+        var r: Int64 = 0
+        for (i, item) in reversed().enumerated() {
+            r += Int64(item << (i * 8))
         }
         return r
     }
