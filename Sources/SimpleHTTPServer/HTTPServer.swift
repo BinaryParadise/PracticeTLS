@@ -41,10 +41,23 @@ public class HTTPServer: NSObject {
 extension HTTPServer: TLSConnectionDelegate {
     public func onReceive(application data: [UInt8], userInfo: [String : AnyHashable]) -> [UInt8]? {
         let request = String(bytes: data, encoding: .utf8) ?? ""
-        let content = """
+        let headers = request.components(separatedBy: "\r\n\r\n").first!.split(separator: "\r\n")
+        var type = "text/html"
+
+        var content = ""
+        if let path = headers.first?.split(separator: " ")[1], path.appending("") == "/index.css" {
+            type = "text/css"
+            content = """
+                body {
+                    background-color: #f3f0f0;
+                }
+                """
+        } else {
+            content = """
             <!DOCTYPE html>
             <html lang="en">
             <title>Practice TLS</title>
+            <link rel="stylesheet" href="index.css">
             <meta charset="utf-8">
             <body>
             <pre>
@@ -57,6 +70,7 @@ extension HTTPServer: TLSConnectionDelegate {
             </pre>
             </body></html>
             """
+        }
         
 //        if content.contains(string: "Connection: Close") {
 //            clientWantsMeToCloseTheConnection = true
@@ -66,13 +80,12 @@ extension HTTPServer: TLSConnectionDelegate {
             HTTP/1.1 200 OK
             Content-Length: \(content.bytes.count)
             Connection: keep-alive
-            Content-Type: text/html; charset=utf-8
+            Content-Type: \(type); charset=utf-8
             Server: PracticeTLS
             """
             .replacingOccurrences(of: "\n", with: "\r\n")
             .appending("\r\n\r\n")
             .appending(content)
-        LogInfo(response)
         return Array(response.bytes)
     }
 }

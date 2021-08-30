@@ -245,6 +245,6 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
         LogInfo("\(err)")
-        TLSSessionManager.shared.sessions.removeValue(forKey: sock.hash)
+        TLSSessionManager.shared.sessions.removeValue(forKey: hash)
     }
 }

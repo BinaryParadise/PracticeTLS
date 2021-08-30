@@ -20,7 +20,7 @@ public class TLSSessionManager: NSObject {
     
     public func acceptConnection(_ sock: GCDAsyncSocket) {
         let newConnection = TLSConnection(sock)
-        sessions[sock.hash] = newConnection
+        sessions[newConnection.hash] = newConnection
         newConnection.handshake()
     }
     
