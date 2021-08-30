@@ -96,7 +96,7 @@ extension HTTPServer: GCDAsyncSocketDelegate {
         if tlsEnabled {
             TLSSessionManager.shared.acceptConnection(newSocket)
         } else {
-            newSocket.readData(withTimeout: 5, tag: 0)
+            newSocket.readData(withTimeout: -1, tag: 0)
         }
     }
     
