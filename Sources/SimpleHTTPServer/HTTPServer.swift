@@ -39,7 +39,15 @@ public class HTTPServer: NSObject {
 }
 
 extension HTTPServer: TLSConnectionDelegate {
-    public func onReceive(application data: [UInt8], userInfo: [String : AnyHashable]) -> [UInt8]? {
+    public func didHandshakeFinished(_ connection: TLSConnection) {
+        connection.readApplication(tag: 0)
+    }
+    
+    public func didWriteApplication(_ connection: TLSConnection, tag: Int) {
+        
+    }
+    
+    public func didReadApplicaton(_ data: [UInt8], connection: TLSConnection, tag: Int) {
         let request = String(bytes: data, encoding: .utf8) ?? ""
         let headers = request.components(separatedBy: "\r\n\r\n").first!.split(separator: "\r\n")
         var type = "text/html"
@@ -62,7 +70,9 @@ extension HTTPServer: TLSConnectionDelegate {
             <body>
             <pre>
             Date: \(Date())
-            \(userInfo)
+            Connection from: \(connection.sock.connectedHost ?? "")
+            TLS Version: \(connection.version.description)
+            Cipher Suite: \(connection.cipherSuite)
             
             Your Request:
             \(request)
@@ -86,7 +96,7 @@ extension HTTPServer: TLSConnectionDelegate {
             .replacingOccurrences(of: "\n", with: "\r\n")
             .appending("\r\n\r\n")
             .appending(content)
-        return Array(response.bytes)
+        connection.writeApplication(data: response.bytes, tag: 23)
     }
 }
 

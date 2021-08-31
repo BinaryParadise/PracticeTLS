@@ -37,13 +37,13 @@ public enum TLSError : Error
 }
 
 /// [密钥交换算法] + 签名算法 + 对称加密算法 + 摘要算法
-enum CipherSuite: UInt16 {
+public enum CipherSuite: UInt16 {
     case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
     case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x3d
     case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA     = 0xc014
     
-    var description: String {
+    public var description: String {
         switch self {
         case .TLS_RSA_WITH_AES_256_CBC_SHA:
             return "TLS_RSA_WITH_AES_256_CBC_SHA"

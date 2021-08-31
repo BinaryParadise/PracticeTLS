@@ -9,28 +9,34 @@ import CocoaAsyncSocket
 
 /// 数据读写标记
 enum RWTags {
+    case changeCipherSpec
     case handshake(TLSHandshakeType)
-    case content(TLSMessageType)
-    case http
+    case alert
+    case applicationData
+    case custom(UInt8)
     
     init(rawValue: UInt8) {
-        if rawValue == 0 {
-            self = .http
-        } else if rawValue > TLSHandshakeType.finished.rawValue {
-            self = .content(TLSMessageType(rawValue: rawValue-50)!)
-        } else {
-            self = .handshake(TLSHandshakeType(rawValue: rawValue)!)
+        switch rawValue {
+        case 0...20: self = .handshake(TLSHandshakeType(rawValue: rawValue)!)
+        case 21: self = .changeCipherSpec
+        case 22: self = .alert
+        case 23: self = .applicationData
+        default: self = .custom(rawValue)
         }
     }
     
     var rawValue: Int {
         switch self {
-        case .handshake(let handshakeType):
-            return Int(handshakeType.rawValue)
-        case .content(let type):
-            return Int(type.rawValue+50)
-        case .http:
-            return Int(UInt8.zero)
+        case .changeCipherSpec:
+            return 21
+        case .handshake(let type):
+            return Int(type.rawValue)
+        case .alert:
+            return 22
+        case .applicationData:
+            return 23
+        case .custom(let v):
+            return Int(v)
         }
     }
 }
