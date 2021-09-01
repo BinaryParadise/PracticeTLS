@@ -46,3 +46,8 @@ swift package init
 [TLS1.2 PreMasterSecret And MasterSecret](https://laoqingcai.com/tls1.2-premasterkey/)
 
 [图解 ECDHE 密钥交换算法](https://www.cnblogs.com/xiaolincoding/p/14318338.html)
+
+## 扩展
+
+[HTTP/2 简介](https://developers.google.com/web/fundamentals/performance/http2?hl=zh-cn)
+[HTTP2 详解](https://juejin.cn/post/6844903667569541133#heading-11)

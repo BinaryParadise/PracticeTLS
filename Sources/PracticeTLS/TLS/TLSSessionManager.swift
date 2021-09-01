@@ -12,7 +12,7 @@ public protocol TLSConnectionDelegate {
     /// TLS握手完成
     func didHandshakeFinished(_ connection: TLSConnection)
     func didWriteApplication(_ connection: TLSConnection, tag: Int)
-    func didReadApplicaton(_ data: [UInt8], connection: TLSConnection, tag: Int)
+    func didReadApplication(_ data: [UInt8], connection: TLSConnection, tag: Int)
 }
 
 public class TLSSessionManager: NSObject {

@@ -16,7 +16,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     var cipherSuite: CipherSuite
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = [] //[.init(type: .renegotiation_info, length: 1, ext: [0])]
-    let extLen: UInt16 = 0
+    var extLen: UInt16 = 0
 
     override init() {
         cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
@@ -24,6 +24,11 @@ public class TLSServerHello: TLSHandshakeMessage {
         type = .handeshake
         handshakeType = .serverHello
         version = .V1_2
+        //支持h2
+        #if false
+        extensions = [.init(type: .application_layer_protocol_negotiation, length: 5, ext: [0x00, 0x03, 0x02, 0x68, 0x32])]
+        extLen = 9
+        #endif
         contentLength = 42 + (extLen > 0 ? 2 : 0) + extLen
         bodyLength = Int(contentLength - 4)
     }

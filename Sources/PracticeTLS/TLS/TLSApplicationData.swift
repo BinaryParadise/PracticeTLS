@@ -8,7 +8,7 @@
 import Foundation
 
 class TLSApplicationData: TLSMessage {
-    var encryptedData: [UInt8]
+    var encryptedData: [UInt8] = []
     init(_ data: [UInt8]) {
         encryptedData = data
         super.init()
@@ -16,7 +16,8 @@ class TLSApplicationData: TLSMessage {
     }
     
     required init?(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
+        super.init(stream: stream)
+        encryptedData = stream.read(count: Int(contentLength)) ?? []
     }
     
     override func dataWithBytes() -> [UInt8] {

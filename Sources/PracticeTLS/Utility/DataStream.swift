@@ -19,14 +19,20 @@ public class DataStream {
     }
     
     /// 当前读取位置，默认为0
-    var position: Int = 0
+    public var position: Int = 0
     
-    public init(_ data: Data) {
-        self.origin = data.bytes
+    public var endOfStream: Bool {
+        return position >= origin.count
     }
     
-    public init(_ bytes: [UInt8]) {
+    public init(_ data: Data, offset: Int = 0) {
+        self.origin = data.bytes
+        read(count: offset)
+    }
+    
+    public init(_ bytes: [UInt8], offset: Int = 0) {
         self.origin = bytes
+        read(count: offset)
     }
     
     /// 重置读取
@@ -35,13 +41,13 @@ public class DataStream {
     }
     
     ///读取指定数量字节
-    public func read(count: Int) -> [UInt8]? {
+    @discardableResult public func read(count: Int) -> [UInt8]? {
         if position+count <= origin.count {
             let bytes = [UInt8](origin[position..<position+count])
             position += bytes.count
             return bytes
         }
-        reset()
+        position = origin.count
         return nil
     }
     

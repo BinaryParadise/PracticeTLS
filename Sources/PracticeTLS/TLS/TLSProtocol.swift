@@ -71,7 +71,7 @@ enum TLSHandshakeType: UInt8 {
 enum TLSExtensionType: UInt16 {
     case statusRequest = 0x0005
     case renegotiation_info = 0xff01
-
+    case application_layer_protocol_negotiation = 0x0010
 }
 
 struct TLSExtension {

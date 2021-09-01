@@ -13,6 +13,7 @@ enum RWTags {
     case handshake(TLSHandshakeType)
     case alert
     case applicationData
+    case fragment
     case custom(UInt8)
     
     init(rawValue: UInt8) {
@@ -21,6 +22,7 @@ enum RWTags {
         case 21: self = .changeCipherSpec
         case 22: self = .alert
         case 23: self = .applicationData
+        case 30: self = .fragment
         default: self = .custom(rawValue)
         }
     }
@@ -35,6 +37,8 @@ enum RWTags {
             return 22
         case .applicationData:
             return 23
+        case .fragment:
+            return 30
         case .custom(let v):
             return Int(v)
         }

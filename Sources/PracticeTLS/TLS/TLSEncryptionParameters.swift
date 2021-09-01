@@ -132,20 +132,15 @@ public class TLSSecurityParameters
 
 extension TLSSecurityParameters {
     public func encrypt(_ data: [UInt8], contentType: TLSMessageType = .handeshake, iv: [UInt8]? = nil) -> [UInt8]? {
+        //PS: CryptoSwift的padding处理异常导致加解密有问题⚠️⚠️⚠️
         guard let write = write else { return [] }
         let MAC = calculateMessageMAC(secret: write.MACKey, contentType: contentType, data: data, isRead: false)!
-        var myPlantText = data + MAC
-        if blockLength > 0 {
-            let paddingLength = blockLength - ((myPlantText.count) % blockLength)
-            if paddingLength != 0 {
-                let padding = [UInt8](repeating: UInt8(paddingLength - 1), count: paddingLength)
-                myPlantText.append(contentsOf: padding)
-            }
-        }
+        let myPlantText = data + MAC
         let IV = iv ?? AES.randomIV(recordIVLength)
         do {
-            let aes = try AES(key: write.bulkKey, blockMode: CBC(iv: IV), padding: .noPadding)
-            return try IV+aes.encrypt(myPlantText)
+            let aes = try AES(key: write.bulkKey, blockMode: CBC(iv: IV), padding: .pkcs7)
+            let cipherText = try aes.encrypt(myPlantText)
+            return IV+cipherText
         } catch {
             LogError("AES加密：\(error)")
         }
@@ -158,28 +153,15 @@ extension TLSSecurityParameters {
         let cipherText = [UInt8](encryptedData[recordIVLength...])
         
         do {
-            let aes = try AES(key: read.bulkKey, blockMode: CBC(iv: IV), padding: .noPadding)
+            let aes = try AES(key: read.bulkKey, blockMode: CBC(iv: IV), padding: .pkcs7)
             let message = try aes.decrypt(cipherText)
-            let hmacLength = hmac.size
-            var messageLength = message.count - hmacLength
-            if blockLength > 0 {
-                let padding = message.last!
-                let paddingLength = Int(padding) + 1
-                var paddingIsCorrect = (paddingLength < message.count)
-                paddingIsCorrect = paddingIsCorrect && (message[(message.count - paddingLength) ..< message.count].filter({$0 != padding}).count == 0)
-                if !paddingIsCorrect {
-                    LogError("Error: could not decrypt message")
-                    return nil
-                }
-                messageLength -= paddingLength
-            }
-            
+            let messageLength = message.count - hmac.size
             let messageContent = [UInt8](message[0..<messageLength])
             
-            let MAC = [UInt8](message[messageLength..<messageLength + hmacLength])
+            let MAC = [UInt8](message[messageLength..<messageLength + hmac.size])
             
             let messageMAC = calculateMessageMAC(secret: read.MACKey, contentType: contentType, data: messageContent, isRead: true)
-            if let messageMAC = messageMAC, MAC == messageMAC {
+            if MAC == messageMAC {
                 return messageContent
             } else {
                 LogError("Error: MAC doesn't match")

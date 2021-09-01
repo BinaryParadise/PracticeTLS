@@ -24,7 +24,14 @@ public class TLSConnection: NSObject {
     var securityParameters: TLSSecurityParameters
     var clientWantsMeToCloseTheConnection = false
     var maximumRecordSize: Int = 256
-    private var rwTag: Int = 0
+    private var http2Enabled = false
+    public var isHTTP2Enabled: Bool {
+        return http2Enabled
+    }
+    public var readWriteTag: Int = 0
+    
+    /// 最后一个包（粘包处理）
+    public var lastPacket: Bool = true
     
     init(_ sock: GCDAsyncSocket) {
         self.sock = sock
@@ -73,12 +80,15 @@ public class TLSConnection: NSObject {
     }
     
     public func readApplication(tag: Int) {
-        rwTag = tag
-        sock.readData(tag: .applicationData)
+        readWriteTag = tag
+        if lastPacket {
+            //处理粘包，弱为最后一个包开始新读取
+            sock.readData(tag: .applicationData)
+        }
     }
     
     public func writeApplication(data: [UInt8], tag: Int) {
-        rwTag = tag
+        readWriteTag = tag
         let encryptedData = securityParameters.encrypt(data, contentType: .applicatonData, iv: nil) ?? []
         securityParameters.write?.sequenceNumber += 1
         sendMessage(msg: TLSApplicationData(encryptedData))
@@ -88,7 +98,7 @@ public class TLSConnection: NSObject {
 extension TLSConnection: GCDAsyncSocketDelegate {
     public func socket(_ sock: GCDAsyncSocket, didRead data: Data, withTag tag: Int) {
         let rtag = RWTags(rawValue: UInt8(tag))
-        LogDebug("\(rtag)")
+        LogDebug("\(rtag) -> \(data.count)")
         switch rtag {
         case .changeCipherSpec:
             break
@@ -136,15 +146,29 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             }
         case .applicationData:
             if let byte: UInt8 = data.first, let type = TLSMessageType(rawValue: byte), type != .applicatonData {
-                socket(sock, didRead: data, withTag: Int(byte))
+                socket(sock, didRead: data, withTag: Int(type.rawValue))
                 break
             }
-            if let msg = TLSEncryptedMessage(stream: DataStream(data)) {
-                if let httpData = securityParameters.decrypt(msg.message, contentType: msg.type) {
-                    securityParameters.read?.sequenceNumber += 1
-                    TLSSessionManager.shared.delegate?.didReadApplicaton(httpData, connection: self, tag: rwTag)
+            let stream = DataStream(data)
+            while true {
+                //出现粘包问题⚠️⚠️⚠️
+                if let msg = TLSApplicationData(stream: stream) {
+                    if msg.type != .applicatonData {
+                        socket(sock, didRead: Data(msg.dataWithBytes()), withTag: Int(msg.type.rawValue))
+                        break
+                    }
+                    if let httpData = securityParameters.decrypt(msg.encryptedData, contentType: msg.type) {
+                        securityParameters.read?.sequenceNumber += 1
+                        lastPacket = stream.endOfStream
+                        TLSSessionManager.shared.delegate?.didReadApplication(httpData, connection: self, tag: readWriteTag)
+                    }
+                }
+                if stream.endOfStream {
+                    break
                 }
             }
+        case .fragment:
+            break
         case .custom(_):
             break
         }
@@ -174,6 +198,8 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             //TODO:serverHello.sessionID = sessionId
             securityParameters.serverRandom = serverHello.random.dataWithBytes()
             serverHello.cipherSuite = cipherSuite
+            http2Enabled = serverHello.extensions.count > 0
+            
             handshakeMessages.append(msg)
             nextMessage = msg.responseMessage()
             sock.writeData(data: serverHello.dataWithBytes(), tag: .handshake(.serverHello))
@@ -192,7 +218,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             let page = (data.count/maximumRecordSize+(data.count%maximumRecordSize > 0 ? 1:0))
             for i in 0..<page {
                 let cur = data[i*maximumRecordSize..<min(data.count, (i+1)*maximumRecordSize)]
-                sock.writeData(data: Array(cur), tag: i < page-1 ? .custom(255) : .applicationData)
+                sock.writeData(data: Array(cur), tag: i < page-1 ? .fragment : .applicationData)
             }
         } else {
             sock.writeData(data: data, tag: .applicationData)
@@ -226,8 +252,9 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         case .alert:
             break
         case .applicationData:
-            TLSSessionManager.shared.delegate?.didWriteApplication(self, tag: rwTag)
-            sock.readData(tag: .applicationData)
+            TLSSessionManager.shared.delegate?.didWriteApplication(self, tag: readWriteTag)
+            break
+        case .fragment:
             break
         case .custom(_):
             break
