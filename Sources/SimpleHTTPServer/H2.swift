@@ -7,8 +7,6 @@
 
 import Foundation
 import PracticeTLS
-import NIOHPACK
-import NIOCore
 import CryptoSwift
 
 enum H2 {}
@@ -120,182 +118,13 @@ extension H2 {
             case .PING:
                 break
             case .GOAWAY:
-                break
+                return FrameGoaway(data)
             case .WINDOW_UPDATE:
                 return FrameWindowUpdate(data)
             case .CONTINUATION:
                 break
             }
             return nil
-        }
-    }
-    
-    class FrameSettings: Frame {
-        var settings: [Setting] = []
-        
-        override init() {
-            super.init()
-            
-            type = .SETTINGS
-            
-            settings = [
-                Setting(identifier: .max_concurrent_streams, value: 100),
-                Setting(identifier: .initial_windows_size, value: 0xFFFF)
-            ]
-            
-            settings.forEach { set in
-                payload.append(contentsOf: set.identifier.rawValue.bytes)
-                payload.append(contentsOf: set.value.bytes)
-            }
-        }
-        
-        override init(_ data: [UInt8]) {
-            super.init(data)
-            let stream = DataStream(payload)
-            while !stream.endOfStream {
-                settings.append(Setting(identifier: .init(rawValue: stream.readUInt16()!)!, value: stream.readUInt()!))
-            }
-        }
-        
-        enum SettingIdentifier: UInt16 {
-            case max_concurrent_streams = 0x0003
-            case initial_windows_size = 0x0004
-        }
-        
-        struct Setting {
-            var identifier: SettingIdentifier
-            var value: UInt
-        }
-    }
-    
-    class FrameWindowUpdate: Frame {
-        var reserved: Bool = false
-        var window_size_increment: UInt = 0xA00000
-        
-        override init() {
-            super.init()
-            
-            type = .WINDOW_UPDATE
-            payload.append(contentsOf: window_size_increment.bytes)
-        }
-        
-        override init(_ data: [UInt8]) {
-            super.init(data)
-            let stream = DataStream(payload)
-            window_size_increment = stream.readUInt()! & 0x7FFFFFFF
-            reserved = (window_size_increment & 0x80000000) != 0
-        }
-    }
-    
-    class FrameHeaders: Frame {
-        
-        /// 填充大小
-        var padLength: UInt8 = 0
-        
-        /// 流依赖是否排他
-        var E: Bool = false
-        
-        /// 流依赖标识
-        var streamDependency: UInt = 0
-        /// 权重（优先级）
-        var weight: UInt8 = 254
-        var header: HPACKHeaders?
-        var path: String = "/"
-        
-        override init(_ data: [UInt8]) {
-            super.init(data)
-            
-            let stream = DataStream(payload)
-            
-            flags = [.endStream, .endHeaders, .priority]
-            
-            if flags.contains(.padded) {
-                padLength = stream.readByte()!
-            }
-            
-            streamDependency = stream.readUInt()! & 0x7FFFFFFF
-            E = (streamDependency & 0x80000000) != 0
-            
-            var decoder = HPACKDecoder(allocator: ByteBufferAllocator())
-            
-            var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-            buffer.writeBytes(payload[5...])
-            if let h = try? decoder.decodeHeaders(from: &buffer) {
-                header = h
-                if let x = h.first(name: "path") {
-                    path = x
-                }
-            }
-        }
-        
-        init(_ contentLength: Int, contentType: String) {
-            super.init()
-            
-            type = .HEADERS
-            flags = [.endHeaders, .priority]
-                                    
-            streamIdentifier = UInt(AES.randomIV(4).intValue & 0x7FFFFFFF)
-
-            var h = HPACKHeaders()
-            h.add(name: ":status", value: "200")
-            h.add(name: "content-length", value: "\(contentLength)")
-            h.add(name: "content-type", value: contentType)
-            h.add(name: "server", value: "PracticeTLS")
-            var encoder = HPACKEncoder(allocator: ByteBufferAllocator())
-            var buffer = ByteBuffer()
-            try? encoder.encode(headers: h, to: &buffer)
-            var headerBlockFragment: [UInt8] = []
-            if let bytes = buffer.readBytes(length: buffer.readableBytes) {
-                headerBlockFragment.append(contentsOf: bytes)
-            }
-            payload = (flags.contains(.padded) ? [padLength] : []) + (UInt(E ? 1 : 0) | streamDependency).bytes + [weight] + headerBlockFragment
-        }
-    }
-    
-    class FrameData: Frame {
-        var padLength: UInt8 = 0
-        
-        init(application data: [UInt8]) {
-            super.init()
-            type = .DATA
-            flags = [.endStream]
-
-            streamIdentifier = UInt(AES.randomIV(4).intValue & 0x7FFFFFFF)
-
-            payload = (flags.contains(.padded) ? [padLength] : []) + data
-        }
-    }
-    
-    enum ErrorCode: UInt {
-        case NO_ERROR               = 0x0
-        case PROTOCOL_ERROR         = 0x1
-        case INTERNAL_ERROR         = 0x2
-        case FLOW_CONTROL_ERROR     = 0x3
-        case SETTINGS_TIMEOUT       = 0x4
-        case STREAM_CLOSED          = 0x5
-        case FRAME_SIZE_ERROR       = 0x6
-        case REFUSED_STREAM         = 0x7
-        case CANCEL                 = 0x8
-        case COMPRESSION_ERROR      = 0x9
-        case CONNECT_ERROR          = 0xa
-        case ENHANCE_YOUR_CALM      = 0xb
-        case INADEQUATE_SECURITY    = 0xc
-        case HTTP_1_1_REQUIRED      = 0xd
-    }
-    
-    class FrameGoaway: Frame {
-        var lastStreamId: UInt = 0
-        var errorCode: ErrorCode = .NO_ERROR
-        var additionalDebugData: [UInt8] = []
-        
-        override init(_ data: [UInt8]) {
-            super.init(data)
-            
-            let stream = DataStream(payload)
-            
-            lastStreamId = stream.readUInt()! & 0x7FFFFFFF
-            errorCode = ErrorCode(rawValue: stream.readUInt()!) ?? .NO_ERROR
-            additionalDebugData = stream.readToEnd() ?? []            
         }
     }
 }

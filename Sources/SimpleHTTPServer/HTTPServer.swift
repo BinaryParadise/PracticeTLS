@@ -72,6 +72,7 @@ public class HTTPServer: NSObject {
         <html lang="en">
         <title>Practice TLS</title>
         <meta charset="utf-8">
+        <link rel="stylesheet" href="index.css">
         <body>
         <pre>
         Date: \(Date())
@@ -101,6 +102,30 @@ public class HTTPServer: NSObject {
             .appending(content)
         return response
     }
+    
+    func indexCSS(_ connection: TLSConnection, h2: Bool = false) -> String {
+        let content = """
+        body {
+            background-color: #f013ef;
+            color: #CCCCCC;
+        }
+        """
+        
+        if h2 {
+            return content
+        }
+        let response = """
+            HTTP/1.1 200 OK
+            Content-Length: \(content.bytes.count)
+            Connection: keep-alive
+            Content-Type: text/css; charset=utf-8
+            Server: PracticeTLS
+            """
+            .replacingOccurrences(of: "\n", with: "\r\n")
+            .appending("\r\n\r\n")
+            .appending(content)
+        return response
+    }
 }
 
 extension HTTPServer: TLSConnectionDelegate {
@@ -119,17 +144,22 @@ extension HTTPServer: TLSConnectionDelegate {
         LogInfo("\(wtag)")
         switch wtag {
         case .http1_1:
-            break
+            connection.read(tag: .http1_1)
         case .magic:
             nextFrame = H2.FrameWindowUpdate()
-            connection.writeApplication(data: H2.FrameSettings().rawBytes(), tag: RWTags.frame(.SETTINGS).rawValue)
+            connection.write(H2.FrameSettings().rawBytes(), tag: .frame(.SETTINGS))
         case .frame(let type):
             if let frame = nextFrame {
                 nextFrame = frame.nextFrame
                 connection.write(frame.rawBytes(), tag: .frame(frame.type))
             } else {
-                if type == .WINDOW_UPDATE {
+                switch type {
+                case .WINDOW_UPDATE:
                     connection.read(tag: .magic)
+                case .DATA:
+                    connection.read(tag: .frame(.HEADERS))
+                default:
+                    break
                 }
             }
             break
@@ -141,8 +171,13 @@ extension HTTPServer: TLSConnectionDelegate {
         LogDebug("\(rtag)")
         switch rtag {
         case .http1_1:
-            connection.write(index(connection, requestHeaders: String(data: Data(data) , encoding: .utf8)!).data(using: .utf8)!.bytes, tag: .http1_1)
-            break
+            let headers = String(data: Data(data) , encoding: .utf8)?.components(separatedBy: "\r\n\r\n").first ?? ""
+            let path = headers.split(separator: "\r\n").first?.split(separator: " ")[1] ?? "/"
+            if path == "/index.css" {
+                connection.write(indexCSS(connection).bytes, tag: .http1_1)
+            } else {
+                connection.write(index(connection, requestHeaders: headers).bytes, tag: .http1_1)
+            }
         case .magic:
             let request = String(bytes: data, encoding: .utf8) ?? ""
             let headers = request.components(separatedBy: "\r\n\r\n").first!.split(separator: "\r\n")
@@ -156,16 +191,6 @@ extension HTTPServer: TLSConnectionDelegate {
                 case is H2.FrameSettings:
                     let fs = f as! H2.FrameSettings
                     if fs.flags.contains(.ack) {
-                        let content = index(connection, requestHeaders: "请求", h2: true)
-                        
-                        let dataFrame = H2.FrameData(application: content.bytes)
-                        dataFrame.streamIdentifier = 1
-                        
-                        let resHead = H2.FrameHeaders(content.bytes.count, contentType: "text/html")
-                        resHead.nextFrame = dataFrame
-                        resHead.streamIdentifier = 1
-                        nextFrame = resHead
-                        
                         let fs = H2.FrameSettings()
                         fs.flags = [.ack]
                         fs.payload = []
@@ -178,7 +203,30 @@ extension HTTPServer: TLSConnectionDelegate {
                 case is H2.FrameHeaders:
                     let head = f as! H2.FrameHeaders
                     if head.path == "/" {
+                        let hstr = head.headers.map { h in
+                            "\(h.name): \(h.value)"
+                        }.joined(separator: "\n")
+                        let content = index(connection, requestHeaders: hstr, h2: true)
+                        
+                        let dataFrame = H2.FrameData(application: content.bytes)
+                        dataFrame.streamIdentifier = head.streamIdentifier
+                        
+                        let resHead = H2.FrameHeaders(content.bytes.count, contentType: "text/html")
+                        resHead.nextFrame = dataFrame
+                        resHead.streamIdentifier = head.streamIdentifier
+                        nextFrame = resHead
+                        
                         connection.read(tag: .frame(.SETTINGS))
+                    } else if head.path == "/index.css" {
+                        let content = indexCSS(connection, h2: true)
+                        
+                        let dataFrame = H2.FrameData(application: content.bytes)
+                        dataFrame.streamIdentifier = head.streamIdentifier
+                        
+                        let resHead = H2.FrameHeaders(content.bytes.count, contentType: "text/css")
+                        resHead.streamIdentifier = head.streamIdentifier
+                        nextFrame = dataFrame
+                        connection.write(resHead.rawBytes(), tag: .frame(.HEADERS))
                     }
                 case is H2.FrameGoaway:
                     let goaway = f as! H2.FrameGoaway
@@ -244,7 +292,12 @@ extension TLSConnection {
         readApplication(tag: tag.rawValue)
     }
     
-    func write(_ data: [UInt8], tag: RWTags) {
+    func write(_ data: Data?, tag: RWTags) {
+        write(data?.bytes, tag: tag)
+    }
+    
+    func write(_ data: [UInt8]?, tag: RWTags) {
+        guard let data = data else { return }
         writeApplication(data: data, tag: tag.rawValue)
     }
 }
