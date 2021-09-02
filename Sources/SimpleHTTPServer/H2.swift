@@ -11,9 +11,9 @@ import NIOHPACK
 import NIOCore
 import CryptoSwift
 
-enum HTTP2 {}
+enum H2 {}
 
-extension HTTP2 {
+extension H2 {
     
     enum FrameType: UInt8 {
         case DATA          = 0x0
@@ -232,10 +232,10 @@ extension HTTP2 {
             super.init()
             
             type = .HEADERS
-            flags = [.endStream, .endHeaders, .priority]
-                        
+            flags = [.endHeaders, .priority]
+                                    
             streamIdentifier = UInt(AES.randomIV(4).intValue & 0x7FFFFFFF)
-            
+
             var h = HPACKHeaders()
             h.add(name: ":status", value: "200")
             h.add(name: "content-length", value: "\(contentLength)")
@@ -260,7 +260,42 @@ extension HTTP2 {
             type = .DATA
             flags = [.endStream]
 
+            streamIdentifier = UInt(AES.randomIV(4).intValue & 0x7FFFFFFF)
+
             payload = (flags.contains(.padded) ? [padLength] : []) + data
+        }
+    }
+    
+    enum ErrorCode: UInt {
+        case NO_ERROR               = 0x0
+        case PROTOCOL_ERROR         = 0x1
+        case INTERNAL_ERROR         = 0x2
+        case FLOW_CONTROL_ERROR     = 0x3
+        case SETTINGS_TIMEOUT       = 0x4
+        case STREAM_CLOSED          = 0x5
+        case FRAME_SIZE_ERROR       = 0x6
+        case REFUSED_STREAM         = 0x7
+        case CANCEL                 = 0x8
+        case COMPRESSION_ERROR      = 0x9
+        case CONNECT_ERROR          = 0xa
+        case ENHANCE_YOUR_CALM      = 0xb
+        case INADEQUATE_SECURITY    = 0xc
+        case HTTP_1_1_REQUIRED      = 0xd
+    }
+    
+    class FrameGoaway: Frame {
+        var lastStreamId: UInt = 0
+        var errorCode: ErrorCode = .NO_ERROR
+        var additionalDebugData: [UInt8] = []
+        
+        override init(_ data: [UInt8]) {
+            super.init(data)
+            
+            let stream = DataStream(payload)
+            
+            lastStreamId = stream.readUInt()! & 0x7FFFFFFF
+            errorCode = ErrorCode(rawValue: stream.readUInt()!) ?? .NO_ERROR
+            additionalDebugData = stream.readToEnd() ?? []            
         }
     }
 }

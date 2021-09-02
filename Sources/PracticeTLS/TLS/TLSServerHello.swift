@@ -25,7 +25,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         handshakeType = .serverHello
         version = .V1_2
         //支持h2
-        #if false
+        #if true
         extensions = [.init(type: .application_layer_protocol_negotiation, length: 5, ext: [0x00, 0x03, 0x02, 0x68, 0x32])]
         extLen = 9
         #endif

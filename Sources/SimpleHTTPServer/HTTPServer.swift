@@ -12,7 +12,7 @@ import PracticeTLS
 enum RWTags {
     case http1_1
     case magic
-    case frame(HTTP2.FrameType)
+    case frame(H2.FrameType)
     
     init(rawValue: UInt8) {
         if rawValue == 255 {
@@ -20,7 +20,7 @@ enum RWTags {
         } else if rawValue == 110 {
             self = .http1_1
         } else {
-            self = .frame(HTTP2.FrameType(rawValue: rawValue)!)
+            self = .frame(H2.FrameType(rawValue: rawValue)!)
         }
     }
     
@@ -40,7 +40,7 @@ public class HTTPServer: NSObject {
     var socket: GCDAsyncSocket?
     var terminated = false
     var tlsEnabled: Bool = false
-    var nextFrame: HTTP2.Frame?
+    var nextFrame: H2.Frame?
     
     public init(_ identity: PEMFileIdentity? = nil) {
         super.init()
@@ -107,8 +107,8 @@ extension HTTPServer: TLSConnectionDelegate {
     
     public func didHandshakeFinished(_ connection: TLSConnection) {
         if connection.isHTTP2Enabled {
-            nextFrame = HTTP2.FrameWindowUpdate()
-            connection.write(HTTP2.FrameSettings().rawBytes(), tag: .frame(.SETTINGS))
+            nextFrame = H2.FrameWindowUpdate()
+            connection.write(H2.FrameSettings().rawBytes(), tag: .frame(.SETTINGS))
         } else {
             connection.read(tag: .http1_1)
         }
@@ -121,8 +121,8 @@ extension HTTPServer: TLSConnectionDelegate {
         case .http1_1:
             break
         case .magic:
-            nextFrame = HTTP2.FrameWindowUpdate()
-            connection.writeApplication(data: HTTP2.FrameSettings().rawBytes(), tag: RWTags.frame(.SETTINGS).rawValue)
+            nextFrame = H2.FrameWindowUpdate()
+            connection.writeApplication(data: H2.FrameSettings().rawBytes(), tag: RWTags.frame(.SETTINGS).rawValue)
         case .frame(let type):
             if let frame = nextFrame {
                 nextFrame = frame.nextFrame
@@ -151,34 +151,38 @@ extension HTTPServer: TLSConnectionDelegate {
                 connection.read(tag: .frame(.SETTINGS))
             }
         case .frame(let type):
-            if let f = HTTP2.Frame.fromData(data: data) {
+            if let f = H2.Frame.fromData(data: data) {
                 switch f {
-                case is HTTP2.FrameSettings:
-                    let fs = f as! HTTP2.FrameSettings
+                case is H2.FrameSettings:
+                    let fs = f as! H2.FrameSettings
                     if fs.flags.contains(.ack) {
                         let content = index(connection, requestHeaders: "请求", h2: true)
                         
-                        let dataFrame = HTTP2.FrameData(application: content.bytes)
+                        let dataFrame = H2.FrameData(application: content.bytes)
+                        dataFrame.streamIdentifier = 1
                         
-                        let resHead = HTTP2.FrameHeaders(content.bytes.count, contentType: "text/html")
-                        resHead.streamDependency = dataFrame.streamIdentifier
+                        let resHead = H2.FrameHeaders(content.bytes.count, contentType: "text/html")
                         resHead.nextFrame = dataFrame
+                        resHead.streamIdentifier = 1
                         nextFrame = resHead
                         
-                        let fs = HTTP2.FrameSettings()
+                        let fs = H2.FrameSettings()
                         fs.flags = [.ack]
                         fs.payload = []
                         connection.write(fs.rawBytes(), tag: .frame(.SETTINGS))
                     } else {
                         connection.read(tag: .frame(.WINDOW_UPDATE))
                     }
-                case is HTTP2.FrameWindowUpdate:
+                case is H2.FrameWindowUpdate:
                     connection.read(tag: .frame(.HEADERS))
-                case is HTTP2.FrameHeaders:
-                    let head = f as! HTTP2.FrameHeaders
+                case is H2.FrameHeaders:
+                    let head = f as! H2.FrameHeaders
                     if head.path == "/" {
                         connection.read(tag: .frame(.SETTINGS))
                     }
+                case is H2.FrameGoaway:
+                    let goaway = f as! H2.FrameGoaway
+                    LogError("\(goaway.additionalDebugData.toString())")
                 default:
                     break
                 }
