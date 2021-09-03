@@ -16,14 +16,14 @@ public class TLSClientHello: TLSHandshakeMessage {
     var sessionID: [UInt8]?
     var cipherSuites: [CipherSuite] = []
     var compressionMethod: CompressionMethod = .null
-    var extensions: [UInt8] = []
+    var extensions: [TLSExtension] = []
 
     required init?(stream: DataStream) {
         stream.position = 5
         let _handshakeType = TLSHandshakeType(rawValue: stream.readByte()!)!
         bodyLength = stream.readUInt24() ?? 0
         clientVersion = TLSVersion(rawValue: stream.readUInt16() ?? 0)
-        random = Random(stream.read(count: 32)!)
+        random = Random(stream: (stream.read(count: 32) ?? []).stream)
         if let len = stream.readByte(), len > 0 {
             sessionID = stream.read(count: Int(len))
         }
@@ -46,18 +46,22 @@ public class TLSClientHello: TLSHandshakeMessage {
         if let len = stream.readByte(), let method = stream.read(count: Int(len))?.first {
             compressionMethod = CompressionMethod(rawValue: method) ?? .null
         }
-        if let extLen = stream.readUInt16(), let bytes = stream.readToEnd() {
-            extensions = bytes
+        if let extLen = stream.readUInt16(), let bytes = stream.read(count: Int(extLen)) {
+            extensions = TLSExtensionsfromData(bytes)
         }
         super.init(stream: DataStream(stream.data))
         handshakeType = _handshakeType
     }
     
     public override func responseMessage() -> TLSHandshakeMessage? {
-        let serverHello = TLSServerHello()
-        serverHello.version = clientVersion
-        serverHello.clientVersion = clientVersion
-        serverHello.random.gmtUnixTime = random.gmtUnixTime
+        if let sve = extensions.first(where: { ext in
+            ext.type == .supported_versions
+        }) as? TLSSupportedVersionsExtension {
+            if sve.versions.contains(.V1_3) {
+               return TLSHelloRetryRequest(client: self)
+            }
+        }
+        let serverHello = TLSServerHello(client: self)
         return serverHello
     }
 }

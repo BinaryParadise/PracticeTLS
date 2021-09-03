@@ -16,7 +16,7 @@ class TLSServerHelloDone: TLSHandshakeMessage {
         handshakeType = .serverHelloDone
     }
     
-    required init?(stream: DataStream) {
+    required init(stream: DataStream) {
         fatalError("init(stream:) has not been implemented")
     }
     

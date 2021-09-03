@@ -87,19 +87,20 @@ public enum NamedGroup : UInt16 {
             fatalError("Unknown OID for \(self)")
         }
     }
-    
-    init?(inputStream: DataStream)
+}
+
+extension NamedGroup : Streamable {
+        
+    init?(stream: DataStream)
     {
-        guard let rawNamedCurve : UInt16 = inputStream.readUInt16() else {
+        guard let rawNamedCurve : UInt16 = stream.readUInt16() else {
             return nil
         }
         
         self.init(rawValue: rawNamedCurve)
         LogError("Curve: \(self)")
     }
-}
-
-extension NamedGroup : Streamable {
+    
     func dataWithBytes() -> [UInt8] {
         return rawValue.bytes
     }
@@ -142,6 +143,10 @@ struct EllipticCurvePoint
 }
 
 extension EllipticCurvePoint : Streamable {
+    init?(stream: DataStream) {
+        fatalError()
+    }
+    
     func dataWithBytes() -> [UInt8] {
         var data:[UInt8] = []
         data.append(UInt8(4))

@@ -9,7 +9,9 @@ import Foundation
 
 public class TLSMessage: Streamable {
     var type: TLSMessageType = .handeshake
-    var version: TLSVersion = TLSVersion.V1_2
+    
+    /// 默认版本TLS 1.2
+    var version: TLSVersion = .V1_2
     var rawData: [UInt8]?
 
     /// 握手协议内容长度（不包括协议头）

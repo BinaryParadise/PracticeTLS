@@ -40,13 +40,4 @@ final class TLSHandshakeMessageTests: XCTestCase {
             XCTFail()
         }
     }
-    
-    func testServerHelloTests() throws {
-        let hello = TLSServerHello(stream: DataStream(TLSServerHello().dataWithBytes()))
-        XCTAssertEqual(hello?.type, .handeshake)
-        XCTAssertEqual(hello?.handshakeType, .serverHello)
-        XCTAssertEqual(hello?.contentLength, 48)
-        XCTAssertEqual(hello?.bodyLength, 44)
-        XCTAssertEqual(hello?.clientVersion, TLSVersion.V1_2)
-    }
 }

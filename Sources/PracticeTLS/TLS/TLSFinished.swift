@@ -15,7 +15,7 @@ class TLSFinished: TLSHandshakeMessage {
         handshakeType = .finished
     }
     
-    required init?(stream: DataStream) {
+    required init(stream: DataStream) {
         fatalError("init(stream:) has not been implemented")
     }
     

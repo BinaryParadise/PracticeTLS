@@ -107,9 +107,6 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                 switch msg {
                 case is TLSClientHello:
                     let clientHello = msg as! TLSClientHello
-                    if clientHello.cipherSuites.contains(.TLS_RSA_WITH_AES_256_CBC_SHA256) {
-                        cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
-                    }
                     //PS：TMD这里要完整的，而不是28字节⚠️⚠️⚠️⚠️⚠️
                     securityParameters.clientRandom = clientHello.random.dataWithBytes()
                     handshakeMessages.append(msg)
@@ -198,12 +195,15 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             //TODO:serverHello.sessionID = sessionId
             securityParameters.serverRandom = serverHello.random.dataWithBytes()
             serverHello.cipherSuite = cipherSuite
+            serverHello.version = version
             http2Enabled = serverHello.extensions.count > 0
             
             handshakeMessages.append(msg)
             nextMessage = msg.responseMessage()
             sock.writeData(data: serverHello.dataWithBytes(), tag: .handshake(.serverHello))
         case is TLSChangeCipherSpec:
+            let change = msg as! TLSChangeCipherSpec
+            version = change.version
             sock.writeData(data: msg.dataWithBytes(), tag: .changeCipherSpec)
         default:
             handshakeMessages.append(msg)
@@ -233,8 +233,10 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         LogDebug("\(wtag)")
         switch wtag {
         case .changeCipherSpec:
-            let finishedMessage = finishedMessage()
-            sock.writeData(data: finishedMessage.dataWithBytes(), tag: .handshake(.finished))
+            if version == .V1_2 {                
+                let finishedMessage = finishedMessage()
+                sock.writeData(data: finishedMessage.dataWithBytes(), tag: .handshake(.finished))
+            }
         case .handshake(let handshakeType):
             if let msg = nextMessage {
                 nextMessage = nil

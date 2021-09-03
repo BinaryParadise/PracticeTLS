@@ -25,7 +25,7 @@ public class TLSHandshakeMessage: TLSMessage {
 //        }
         var message: TLSHandshakeMessage?
         switch header.type {
-        case .helloRequest:
+        case .helloRequest, .helloRetryRequest:
             break
         case .clientHello:
             message = TLSClientHello(stream: DataStream(data))
