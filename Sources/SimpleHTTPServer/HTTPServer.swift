@@ -173,6 +173,7 @@ extension HTTPServer: TLSConnectionDelegate {
         case .http1_1:
             let headers = String(data: Data(data) , encoding: .utf8)?.components(separatedBy: "\r\n\r\n").first ?? ""
             let path = headers.split(separator: "\r\n").first?.split(separator: " ")[1] ?? "/"
+            LogInfo("GET \(path)")
             if path == "/index.css" {
                 connection.write(indexCSS(connection).bytes, tag: .http1_1)
             } else {

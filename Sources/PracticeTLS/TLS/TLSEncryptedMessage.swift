@@ -29,4 +29,9 @@ class TLSEncryptedMessage: TLSHandshakeMessage {
         data.append(contentsOf: message)
         return data
     }
+    
+    override func responseMessage() -> TLSHandshakeMessage? {
+        let res = TLSChangeCipherSpec()
+        return res
+    }
 }

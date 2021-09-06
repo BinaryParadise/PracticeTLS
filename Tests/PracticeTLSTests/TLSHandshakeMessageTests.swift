@@ -31,7 +31,7 @@ final class TLSHandshakeMessageTests: XCTestCase {
             0x2f, 0x33, 0x08, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x31, 0x2e, 0x31, 0x00, 0x0b, 0x00, 0x02, 0x01,
             0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18]
         
-        if let msg = TLSHandshakeMessage.fromData(data: Data(rawData)) as? TLSClientHello {
+        if let msg = TLSHandshakeMessage.fromData(data: rawData) as? TLSClientHello {
             XCTAssertEqual(msg.contentLength, 232)
             XCTAssertEqual(msg.handshakeType, .clientHello)
             XCTAssertEqual(msg.bodyLength, 228)

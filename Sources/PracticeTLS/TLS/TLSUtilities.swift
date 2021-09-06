@@ -38,8 +38,8 @@ public enum TLSError : Error
 
 /// [密钥交换算法] + 签名算法 + 对称加密算法 + 摘要算法
 public enum CipherSuite: UInt16 {
-    case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x35
-    case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x3d
+    case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x0035
+    case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x003d
     case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
     case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA     = 0xc014
     
@@ -49,6 +49,7 @@ public enum CipherSuite: UInt16 {
     // be used for TLS 1.3 either.
     case TLS_AES_128_GCM_SHA256 = 0x1301
     case TLS_AES_256_GCM_SHA384 = 0x1302
+    case TLS_CHACHA20_POLY1305_SHA256 = 0x1303
     case TLS_AES_128_CCM_SHA256 = 0x1304
     
     public var description: String {

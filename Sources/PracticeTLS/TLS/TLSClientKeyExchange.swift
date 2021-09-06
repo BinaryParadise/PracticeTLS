@@ -37,14 +37,6 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
         preMasterSecret = EncryptedPreMasterSecret(stream)
         super.init(stream: DataStream(stream.data))
         handshakeType = _handshakeType
-        
-        _ = stream.read(count: 6)
-        encryptedMessage = TLSEncryptedMessage(stream: DataStream(Data(stream.readToEnd() ?? [])))
-    }
-    
-    override func responseMessage() -> TLSHandshakeMessage? {
-        let res = TLSChangeCipherSpec()
-        return res
     }
     
     override func messageData() -> [UInt8] {

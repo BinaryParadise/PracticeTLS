@@ -28,6 +28,21 @@ public class TLSMessage: Streamable {
         contentLength = stream.readUInt16() ?? 0
     }
     
+    public class func fromData(data: [UInt8]) -> TLSMessage? {
+        let stream = data.stream
+        guard let type = TLSMessageType(rawValue: stream.readByte(cursor: false) ?? 0) else { return nil}
+        switch type {
+        case .changeCipherSpec:
+            return TLSChangeCipherSpec(stream: stream)
+        case .alert:
+            return TLSAlert(stream: stream)
+        case .handeshake:
+            return TLSHandshakeMessage.fromData(data: data)
+        case .applicatonData:
+            return TLSApplicationData(stream: stream)
+        }
+    }
+    
     func dataWithBytes() -> [UInt8] {
         return []
     }

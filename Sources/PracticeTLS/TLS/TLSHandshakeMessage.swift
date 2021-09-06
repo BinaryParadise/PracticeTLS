@@ -14,15 +14,11 @@ public class TLSHandshakeMessage: TLSMessage {
         return nil
     }
 
-    public class func fromData(data: Data) -> TLSHandshakeMessage? {
+    public override class func fromData(data: [UInt8]) -> TLSMessage? {
         guard let header = readHeader(stream: DataStream(data)) else {
-            return nil
+            return TLSEncryptedMessage(stream: data.stream)
         }
         
-        //TODO:内容大小验证
-//        if data.count > header.bodyLength + 4  {
-//            return nil
-//        }
         var message: TLSHandshakeMessage?
         switch header.type {
         case .helloRequest, .helloRetryRequest:
@@ -43,7 +39,6 @@ public class TLSHandshakeMessage: TLSMessage {
             break
         case .clientKeyExchange:
             message = TLSClientKeyExchange(stream: DataStream(data))
-            break
         case .finished:
             break
         }
