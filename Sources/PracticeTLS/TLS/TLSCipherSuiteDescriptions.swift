@@ -88,6 +88,16 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         blockCipherMode: .cbc,
         hashFunction: .sha1
     ),
+    CipherSuiteDescriptor(
+        cipherSuite: .TLS_AES_128_GCM_SHA256,
+        bulkCipherAlgorithm: .aes128,
+        cipherType: .aead,
+        blockCipherMode: .gcm,
+        fixedIVLength: 12,
+        authTagSize: 16,
+        hashFunction: .sha256,
+        supportedProtocolVersions: [.V1_3]
+    )
 ]
 
 let TLSCipherSuiteDescriptionDictionary : [CipherSuite:CipherSuiteDescriptor] = {

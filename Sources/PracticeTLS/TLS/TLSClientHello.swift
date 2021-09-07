@@ -17,6 +17,9 @@ public class TLSClientHello: TLSHandshakeMessage {
     var cipherSuites: [CipherSuite] = []
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = []
+    var keyExchange: [UInt8] {
+        return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: .secp256r1)?.keyExchange ?? []
+    }
 
     required init?(stream: DataStream) {
         stream.position = 5
@@ -53,12 +56,16 @@ public class TLSClientHello: TLSHandshakeMessage {
         handshakeType = _handshakeType
     }
     
+    func extend(_ type: TLSExtensionType) -> TLSExtension? {
+        return extensions.first { ext in
+            ext.type == type
+        }
+    }
+    
     public override func responseMessage() -> TLSHandshakeMessage? {
-        if let sve = extensions.first(where: { ext in
-            ext.type == .supported_versions
-        }) as? TLSSupportedVersionsExtension {
-            if sve.versions.contains(.V1_3) {
-               return TLSHelloRetryRequest(client: self)
+        if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) != nil {
+            if keyExchange.count == 0 {
+                return TLSHelloRetryRequest(client: self)
             }
         }
         let serverHello = TLSServerHello(client: self)

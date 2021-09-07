@@ -24,7 +24,7 @@ public class TLSHandshakeMessage: TLSMessage {
         case .helloRequest, .helloRetryRequest:
             break
         case .clientHello:
-            message = TLSClientHello(stream: DataStream(data))
+            message = TLSClientHello(stream: data.stream)
         case .serverHello:
             break
         case .certificate:
@@ -38,9 +38,9 @@ public class TLSHandshakeMessage: TLSMessage {
         case .certificateVerify:
             break
         case .clientKeyExchange:
-            message = TLSClientKeyExchange(stream: DataStream(data))
+            message = TLSClientKeyExchange(stream: data.stream)
         case .finished:
-            break
+            message = TLSFinished(stream: data.stream)
         }
         return message
     }

@@ -105,7 +105,12 @@ func TLSExtensionsfromData(_ data: [UInt8]) -> [TLSExtension] {
                 case .supported_versions:
                     exts.append(TLSSupportedVersionsExtension(stream: stream)!)
                 case .key_share:
+                    //启用TLS 1.3
+                    #if false
                     exts.append(TLSKeyShareExtension(stream: stream, handshake: .clientHello)!)
+                    #else
+                    ignoreExtension()
+                    #endif
                 default:
                     ignoreExtension()
                 }
@@ -148,9 +153,9 @@ struct TLSSupportedVersionsExtension: Streamable, TLSExtension {
 }
 
 enum KeyShare {
-    case clientHello(clientShares : [KeyShareEntry])
-    case helloRetryRequest(selectedGroup: NamedGroup)
-    case serverHello(serverShare: KeyShareEntry)
+    case clientHello([KeyShareEntry])
+    case helloRetryRequest(NamedGroup)
+    case serverHello(KeyShareEntry)
 }
 
 struct TLSKeyShareExtension: Streamable, TLSExtension {
@@ -175,17 +180,28 @@ struct TLSKeyShareExtension: Streamable, TLSExtension {
             var entries: [KeyShareEntry] = []
             entryStream.read(count: 2)
             while !entryStream.endOfStream {
-                let group = NamedGroup(stream: entryStream) ?? .x25519
-                let keyLength = entryStream.readUInt16() ?? 0
-                entries.append(KeyShareEntry(group: group, length: keyLength, keyExchange: entryStream.read(count: keyLength) ?? []))
+                if let entry = KeyShareEntry(stream: entryStream) {
+                    entries.append(entry)
+                }
             }
-            keyShare = .clientHello(clientShares: entries)
-        case .serverHello:
-            keyShare = .serverHello(serverShare: KeyShareEntry(group: .secp256r1, length: 65, keyExchange: []))
+            keyShare = .clientHello(entries)
         case .helloRetryRequest:
-            keyShare = .helloRetryRequest(selectedGroup: .secp256r1)
+            keyShare = .helloRetryRequest(.secp256r1)
         default:
-            keyShare = .helloRetryRequest(selectedGroup: .secp256r1)
+            keyShare = .helloRetryRequest(.secp256r1)
+        }
+    }
+    
+    func entry(nameGroup: NamedGroup) -> KeyShareEntry? {
+        switch keyShare {
+        case .clientHello(let clientShares):
+            return clientShares.first { e in
+                e.group == nameGroup
+            }
+        case .helloRetryRequest(_):
+            return nil
+        case .serverHello(_):
+            return nil
         }
     }
     
@@ -195,29 +211,40 @@ struct TLSKeyShareExtension: Streamable, TLSExtension {
         switch keyShare {
         case .clientHello(clientShares: let clientShares):
             bytes.append(contentsOf: UInt16(clientShares.reduce(0, { r, entry in
-                r + entry.bytes.count
+                r + entry.dataWithBytes().count
             })).bytes)
             clientShares.forEach { entry in
-                bytes.append(contentsOf: entry.bytes)
+                bytes.append(contentsOf: entry.dataWithBytes())
             }
         case .helloRetryRequest(selectedGroup: let selectedGroup):
             bytes.append(contentsOf: UInt16(selectedGroup.rawValue.bytes.count).bytes)
             bytes.append(contentsOf: selectedGroup.rawValue.bytes)
         case .serverHello(serverShare: let serverShare):
-            bytes.append(contentsOf: UInt16(serverShare.bytes.count).bytes)
-            bytes.append(contentsOf: serverShare.bytes)
+            bytes.append(contentsOf: UInt16(serverShare.dataWithBytes().count).bytes)
+            bytes.append(contentsOf: serverShare.dataWithBytes())
         }
         return bytes
     }
 }
 
-struct KeyShareEntry {
+struct KeyShareEntry: Streamable {
     var group: NamedGroup
-    var length: UInt16
     var keyExchange: [UInt8]
     
-    var bytes: [UInt8] {
-        return group.dataWithBytes() + length.bytes + keyExchange
+    init(group: NamedGroup, keyExchange: [UInt8]) {
+        self.group = group
+        self.keyExchange = keyExchange
+    }
+    
+    init?(stream: DataStream) {
+        guard let g = NamedGroup(rawValue: stream.readUInt16() ?? 0) else { return nil }
+        group = g
+        let length = stream.readUInt16() ?? 0
+        keyExchange = stream.read(count: length) ?? []
+    }
+    
+    func dataWithBytes() -> [UInt8] {
+        return group.dataWithBytes() + UInt16(keyExchange.count).bytes + keyExchange
     }
 }
 

@@ -32,7 +32,7 @@ public class TLSConnection: NSObject {
     /// 最后一个包（粘包处理）
     public var lastPacket: Bool = true
     public var handshaked: Bool = false
-    var isHelloRetry: Bool = false
+    var isTLS1_3Enabled: Bool = false
     
     init(_ sock: GCDAsyncSocket) {
         self.sock = sock
@@ -183,14 +183,23 @@ public class TLSConnection: NSObject {
             sock.writeData(data: msg.dataWithBytes(), tag: .handshake(.helloRetryRequest))
         case is TLSServerHello:
             let serverHello = msg as! TLSServerHello
-            //TODO:serverHello.sessionID = sessionId
             securityParameters.serverRandom = serverHello.random.dataWithBytes()
-            serverHello.cipherSuite = cipherSuite
+            cipherSuite = serverHello.cipherSuite
             serverHello.version = version
-            http2Enabled = serverHello.extensions.count > 0
+            http2Enabled = serverHello.extend(.application_layer_protocol_negotiation) != nil
             
             handshakeMessages.append(msg)
             nextMessage = msg.responseMessage()
+            
+            isTLS1_3Enabled = serverHello.extend(.supported_versions) != nil
+            if isTLS1_3Enabled {
+                securityParameters.preMasterSecret = serverHello.client!.keyExchange
+                if let exchange = securityParameters.setupExchange() {
+                    serverHello.keyExchange(keyExchange: exchange)
+                    setPendingSecurityParametersForCipherSuite(cipherSuite)
+                }
+            }
+            
             sock.writeData(data: serverHello.dataWithBytes(), tag: .handshake(.serverHello))
         case is TLSChangeCipherSpec:
             let change = msg as! TLSChangeCipherSpec
@@ -242,18 +251,27 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         LogDebug("\(wtag)")
         switch wtag {
         case .changeCipherSpec:
-            if version == .V1_2 {                
+            if isTLS1_3Enabled {
+            } else {
                 let finishedMessage = finishedMessage()
                 sock.writeData(data: finishedMessage.dataWithBytes(), tag: .handshake(.finished))
             }
         case .handshake(let handshakeType):
             if let msg = nextMessage {
                 nextMessage = nil
-                sendHandshake(msg)
+                if isTLS1_3Enabled {
+                    let encryptedData = securityParameters.encrypt(msg.dataWithBytes(), contentType: .applicatonData, iv: nil) ?? []
+                    securityParameters.write?.sequenceNumber += 1
+                    let clientFinishedMsg = verifyDataForFinishedMessage(isClient: true)
+                    handshakeMessages.append(clientFinishedMsg)
+                    nextMessage = finishedMessage()
+                    sendMessage(msg: TLSApplicationData(encryptedData))
+                } else {
+                    sendHandshake(msg)
+                }
             } else {
                 switch handshakeType {
                 case .helloRetryRequest:
-                    isHelloRetry = true
                     sock.readData(tag: .handshake(.clientHello))
                 case .serverHelloDone:
                     sock.readData(tag: .handshake(.clientKeyExchange))

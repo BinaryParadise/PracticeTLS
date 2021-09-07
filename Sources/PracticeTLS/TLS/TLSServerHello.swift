@@ -22,29 +22,15 @@ public class TLSServerHello: TLSHandshakeMessage {
     }
     
     var supportVersion: TLSVersion?
+    var client: TLSClientHello?
 
     init(client: TLSClientHello) {
+        self.client = client
         super.init()
         
-        //选定TLS版本
-        if let suppertedVersions = client.extensions.first(where: { ext in
-            ext is TLSSupportedVersionsExtension
-        }) as? TLSSupportedVersionsExtension {
-            if suppertedVersions.versions.contains(.V1_3) {
-                supportVersion = .V1_3
-            }
-        }
-        
-        //选定加密套间
-        if supportVersion == .V1_3 {
-            extensions.append(TLSSupportedVersionsExtension())
-            extensions.append(TLSKeyShareExtension(keyShare: .serverHello(serverShare: KeyShareEntry(group: .secp256r1, length: 65, keyExchange: []))))
-        } else {
-            if client.cipherSuites.contains(.TLS_RSA_WITH_AES_256_CBC_SHA256) {
-                cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
-            }
-        }
+        keyExchange()
     
+        sessionID = client.sessionID ?? []
         type = .handeshake
         handshakeType = .serverHello
         //支持h2
@@ -56,19 +42,44 @@ public class TLSServerHello: TLSHandshakeMessage {
         bodyLength = Int(contentLength - 4)
     }
     
+    func keyExchange(keyExchange: [UInt8] = []) {
+        guard let client = client else { return }
+        extensions.removeAll()
+        //选定TLS版本
+        if let suppertedVersions = client.extensions.first(where: { ext in
+            ext is TLSSupportedVersionsExtension
+        }) as? TLSSupportedVersionsExtension {
+            if suppertedVersions.versions.contains(.V1_3) {
+                supportVersion = .V1_3
+            }
+        }
+        
+        //选定加密套件
+        if supportVersion == .V1_3 {
+            extensions.append(TLSSupportedVersionsExtension())
+            extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: .secp256r1, keyExchange:keyExchange))))
+                        
+            cipherSuite = .TLS_AES_128_GCM_SHA256
+        } else {
+            if client.cipherSuites.contains(.TLS_RSA_WITH_AES_256_CBC_SHA256) {
+                cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
+            }
+        }
+    }
+    
     required init?(stream: DataStream) {
         fatalError("init(stream:) has not been implemented")
     }
     
-    public override func responseMessage() -> TLSHandshakeMessage? {
-        if supportVersion == .V1_3 {
-            let changeCipher = TLSChangeCipherSpec()
-            changeCipher.version = supportVersion!
-            return changeCipher
-        } else {
-            let cert = TLSCertificate()
-            cert.version = version
-            return cert
+    public override func responseMessage() -> TLSHandshakeMessage? {        
+        let cert = TLSCertificate()
+        cert.version = version
+        return cert
+    }
+    
+    func extend(_ type: TLSExtensionType) -> TLSExtension? {
+        return extensions.first { ext in
+            ext.type == type
         }
     }
     

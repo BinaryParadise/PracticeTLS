@@ -24,10 +24,9 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
 
         handshakeType = .serverHello
         sessionID = client.sessionID
-        cipherSuite = .TLS_AES_128_CCM_SHA256
         
         extensions.append(TLSSupportedVersionsExtension())
-        extensions.append(TLSKeyShareExtension(keyShare: .helloRetryRequest(selectedGroup: NamedGroup.secp256r1)))
+        extensions.append(TLSKeyShareExtension(keyShare: .helloRetryRequest(NamedGroup.secp256r1)))
     }
     
     required init?(stream: DataStream) {
