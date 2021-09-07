@@ -88,12 +88,27 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         blockCipherMode: .cbc,
         hashFunction: .sha1
     ),
+    
+    CipherSuiteDescriptor(
+        cipherSuite: .TLS_RSA_WITH_AES_128_GCM_SHA256,
+        keyExchangeAlgorithm: .rsa,
+        bulkCipherAlgorithm: .aes128,
+        cipherType: .aead,
+        blockCipherMode: .gcm,
+        fixedIVLength: 4,
+        recordIVLength: 8,
+        authTagSize: 16,
+        hashFunction: .sha256
+    ),
+    
+    // TLS 1.3
     CipherSuiteDescriptor(
         cipherSuite: .TLS_AES_128_GCM_SHA256,
         bulkCipherAlgorithm: .aes128,
         cipherType: .aead,
         blockCipherMode: .gcm,
-        fixedIVLength: 12,
+        fixedIVLength: 4,
+        recordIVLength: 8,
         authTagSize: 16,
         hashFunction: .sha256,
         supportedProtocolVersions: [.V1_3]

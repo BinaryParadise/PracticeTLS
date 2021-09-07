@@ -15,7 +15,7 @@ public class TLSHandshakeMessage: TLSMessage {
     }
 
     public override class func fromData(data: [UInt8]) -> TLSMessage? {
-        guard let header = readHeader(stream: DataStream(data)) else {
+        guard let header = readHeader(stream: data.stream) else {
             return TLSEncryptedMessage(stream: data.stream)
         }
         
@@ -40,7 +40,7 @@ public class TLSHandshakeMessage: TLSMessage {
         case .clientKeyExchange:
             message = TLSClientKeyExchange(stream: data.stream)
         case .finished:
-            message = TLSFinished(stream: data.stream)
+            break
         }
         return message
     }
@@ -49,7 +49,7 @@ public class TLSHandshakeMessage: TLSMessage {
         _ = stream.read(count: 5)
         if let type = stream.readByte(),
            let handshakeType = TLSHandshakeType(rawValue: type),
-           let bodyLength = stream.readUInt24() {
+           let bodyLength = stream.readUInt24(), bodyLength > 0 {
             return (handshakeType, bodyLength)
         }
         return nil

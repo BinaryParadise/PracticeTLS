@@ -148,11 +148,17 @@ extension TLSSecurityParameters {
         let isAEAD = cipherType == .aead
         let MAC = isAEAD ? [] : calculateMessageMAC(secret: write.MACKey, contentType: contentType, data: data, isRead: false)!
         let myPlantText = data + MAC
-        let IV = (isAEAD ? write.fixedIV:[]) + (iv ?? AES.randomIV(recordIVLength))
+        let recordIV = iv ?? AES.randomIV(recordIVLength)
+        let IV = (isAEAD ? write.fixedIV:[]) + recordIV
         do {
-            let aes = try AES(key: write.bulkKey, blockMode: blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV), padding: blockCipherMode == .cbc ? .pkcs7 : .noPadding)
-            let cipherText = try aes.encrypt(myPlantText)
-            return IV+cipherText
+            let macHeader = isAEAD ? MACHeader(contentType, dataLength: myPlantText.count, isRead: false) : []
+            let blockMode:BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, additionalAuthenticatedData: macHeader)
+            let aes = try AES(key: write.bulkKey, blockMode: blockMode, padding: blockCipherMode == .cbc ? .pkcs7 : .noPadding)
+            var cipherText = try aes.encrypt(myPlantText)
+            if let gcm = blockMode as? GCM {
+                cipherText += gcm.authenticationTag ?? []
+            }
+            return recordIV+cipherText
         } catch {
             LogError("AES加密：\(error)")
         }
@@ -163,11 +169,27 @@ extension TLSSecurityParameters {
         guard let read = read else { return nil }
         let isAEAD = cipherType == .aead
         let IV = (isAEAD ? read.fixedIV :[]) + [UInt8](encryptedData[0..<recordIVLength])
-        let cipherText = [UInt8](encryptedData[recordIVLength...])
+        let cipherText: [UInt8]
+        
+        var authTag : [UInt8] = []
+        if blockCipherMode == .gcm {
+            cipherText = [UInt8](encryptedData[recordIVLength..<(encryptedData.count - blockLength)])
+            authTag = [UInt8](encryptedData[(encryptedData.count - blockLength)..<encryptedData.count])
+        } else {
+            cipherText = [UInt8](encryptedData[recordIVLength..<encryptedData.count])
+        }
         
         do {
-            let aes = try AES(key: read.bulkKey, blockMode: blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV), padding: .pkcs7)
+            let macHeader = isAEAD ? MACHeader(contentType, dataLength: encryptedData.count - recordIVLength - blockLength, isRead: true) : []
+            let blockMode: BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, authenticationTag: authTag, additionalAuthenticatedData: macHeader)
+
+            let aes = try AES(key: read.bulkKey, blockMode: blockMode, padding: blockCipherMode == .cbc ? .pkcs7: .noPadding)
             let message = try aes.decrypt(cipherText)
+            if isAEAD {
+                if authTag == (blockMode as? GCM)?.authenticationTag {
+                    return message
+                }
+            }
             let messageLength = message.count - hmac.size
             let messageContent = [UInt8](message[0..<messageLength])
             

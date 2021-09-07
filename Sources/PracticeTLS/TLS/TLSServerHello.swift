@@ -61,8 +61,8 @@ public class TLSServerHello: TLSHandshakeMessage {
                         
             cipherSuite = .TLS_AES_128_GCM_SHA256
         } else {
-            if client.cipherSuites.contains(.TLS_RSA_WITH_AES_256_CBC_SHA256) {
-                cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
+            if client.cipherSuites.contains(.TLS_RSA_WITH_AES_128_GCM_SHA256) {
+                cipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
             }
         }
     }
