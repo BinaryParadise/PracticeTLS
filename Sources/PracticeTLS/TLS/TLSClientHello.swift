@@ -54,21 +54,19 @@ public class TLSClientHello: TLSHandshakeMessage {
         }
         super.init(stream: DataStream(stream.data))
         handshakeType = _handshakeType
+        
+        if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) != nil {
+            if keyExchange.count == 0 {
+                nextMessage = TLSHelloRetryRequest(client: self)
+                return
+            }
+        }
+        nextMessage = TLSServerHello(client: self)
     }
     
     func extend(_ type: TLSExtensionType) -> TLSExtension? {
         return extensions.first { ext in
             ext.type == type
         }
-    }
-    
-    public override func responseMessage() -> TLSHandshakeMessage? {
-        if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) != nil {
-            if keyExchange.count == 0 {
-                return TLSHelloRetryRequest(client: self)
-            }
-        }
-        let serverHello = TLSServerHello(client: self)
-        return serverHello
     }
 }

@@ -27,12 +27,6 @@ public class TLSCertificate: TLSHandshakeMessage {
         fatalError("init(stream:) has not been implemented")
     }
     
-    public override func responseMessage() -> TLSHandshakeMessage? {
-        let helloDone = TLSServerHelloDone()
-        helloDone.version = version
-        return helloDone
-    }
-    
     override func dataWithBytes() -> [UInt8] {
         var certificateData: [UInt8] = []
 

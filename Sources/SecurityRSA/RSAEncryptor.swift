@@ -9,15 +9,21 @@
 import Foundation
 import Security
 
+#if false
+//测试
+public let kRSAPublicKey = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDQg49cH7GmFgwYZvF7tT65CsE0nYHAaoSAPshbojdP28mkZy2IWlm50nqFlZxIPhTltJHNddX3l1StvrE83F9QYPsAfPcPTIfftOhEXKqCKErDISDNT3QDE4YkHV925LEPDK+rShZoPfE2l3qB2gpQMZ1fLoDRkHw9HQRTWRulRwIDAQAB"
+public let kRSAPrivateKey = "MIICXgIBAAKBgQDQg49cH7GmFgwYZvF7tT65CsE0nYHAaoSAPshbojdP28mkZy2IWlm50nqFlZxIPhTltJHNddX3l1StvrE83F9QYPsAfPcPTIfftOhEXKqCKErDISDNT3QDE4YkHV925LEPDK+rShZoPfE2l3qB2gpQMZ1fLoDRkHw9HQRTWRulRwIDAQABAoGBAK1PLDEeBsJNQPBnX/+6vc9/qObao6YS4t7VUCMZyW+O9yK2v5m9vyY8U6oEmElTkHr8gtOLRbTtC2z+OsKjSHQ9WJtrAZB0gxugdObk8BzszVmj5huiWTnyVd38RcRtk5owmShFzc1/Iol7ir/cGAddrcdqxcT1bRsL5oMHzuIBAkEA+lg+9nBr35IFjYHhJkI1H37DTpfMV1MOkZ6AcAYj/m4mr3CR6tJuh8JPEC/zkP5iypK5yOBiPHHWwu+xlA1SpwJBANU5Z50F9tNSMMLmXy5UI9eb4dBbD+SrB6CyqcuifCDDOnT+A5uxhLknO03l2rBAbzybj0mEY3hZk9cCU7nEjGECQQDFiNwlmI+F2bKH9fOyPIuuTlfNq/mQ7fiQ7oBp5G6CVGgyBqEcqO6OMMQyAaQuxIsvTJdL6cGZ8DmFl5yHNfwBAkBy0oL1kCynB++yRRSkgjL6/LrR1PfuEBv/cbb2Lf3iNr/YGKIgyavLeVD6Vfk6SLieTrcOw/g86yAt/NbRhwKBAkEAwG2AH/5jCLneXCS01+6SzKRJEqwdiTb1VtV1YFdcJLQMWyDjSJYeQfWBu6e0EhOE35igfZ6QkmZaMVKcLmJabw=="
+#else
+ 
 public let kRSAPublicKey = """
     -----BEGIN PUBLIC KEY-----
-    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4YcP0lzql8Fgl3LP8xa/
-    fl2SvkSf0MeAEZsrx+41bMRpHBa5mEM9is378/hKV6/kK3CadJFR6CF32AWWqqQ7
-    0Dg6tOyD6PiXjHXnPV3pUOyzlI9DAeP/Ndcl+dJXYah5OjR3bCRGfrrn9Tl7tJQf
-    qWdx7xKQZRvDuo7qHkOxa4U6eOqQkBGINTAktAr/RAZe6S1yZT9wBcSIzwJ0kCok
-    I46rWUUuQb4md1rB/FO4/tCn+vYjW2erc0SyjC3ZsgjpGEAaAjv/AMGchC5BvTIS
-    jBl8hWCH8ElVx2/NjASAGdU2XRWUwz2Etn4d8sxPJ5gVAAb5YsoE96Es3K+0LgGa
-    cwIDAQAB
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwlrILgRpHj+i847BwDov
+    ZxYAWwjIejcogloLjwSz3fecsHbQ5sG+Z4wotx50OefEtOIoZnh5T6/7HO9ZI0eQ
+    yCNOwrDCmACAcrEoyzk/0dytFyYLPcdRgC+foSQ5Bgor3QmlwojRHxUP5KTl90ef
+    tVI/GyCTtzHIewOQk6cu8W4o531gYDGuU1lrVaGiyqQsQrNZ38HoO+Iv+WKyBjJS
+    C1DYoYe+w2tra3H+PWRTsNCbHDADzX36uG2lD/msqC08tl1G9yTK1Jri5MlB1+Bw
+    Hcj127peKDjpq7ydrcxCtflzFueTq/wpc3D7kUrFbOZba8WMPRnjxGllqTZC3zUl
+    BwIDAQAB
     -----END PUBLIC KEY-----
     """
 
@@ -50,7 +56,8 @@ public let kRSAPrivateKey = """
     lziHR3yn73gaK+sgNdZVbsW4jHACydlJYKLVlhcch6KkgeyIjgnz
     -----END RSA PRIVATE KEY-----
     """
-
+#endif
+ 
 /// GMJ---RSA并.p12加密解密
 public class RSAEncryptor: NSObject {
     
@@ -78,22 +85,27 @@ public class RSAEncryptor: NSObject {
         }
     }
     
-    
-static func base64_encode_data(data:Data) -> String {
-        let dataT =  data.base64EncodedData(options: .lineLength64Characters)//0
-        let ret = String(data: dataT, encoding: .utf8) ?? "数据不存在"
-        return ret
+    func getPrivateSecKey() -> SecKey? {
+        let keyBase64 = Data(base64Encoded: kRSAPrivateKey.rsaCleanKey)!
+        let sec = SecKeyCreateWithData(keyBase64 as CFData, [kSecAttrType: kSecAttrKeyTypeRSA,
+                                                             kSecMatchBits: keyBase64.count * 8 ,
+                                                             kSecReturnPersistentRef: true,
+                                                             kSecAttrKeyClass: kSecAttrKeyClassPrivate] as NSDictionary, nil)
+        return sec
     }
-    
-static func bese64_decode(str:String) -> Data {
-        let dateDefaule = "数据不存在".data(using: .utf8)! as Data
-        let dataT:Data = Data(base64Encoded: str, options: .ignoreUnknownCharacters) ?? dateDefaule
-        return dataT
+
+    func getPublicSecKey() -> SecKey? {
+        let keyBase64 = Data(base64Encoded: kRSAPublicKey.rsaCleanKey)!
+        let sec = SecKeyCreateWithData(keyBase64 as CFData, [kSecAttrType: kSecAttrKeyTypeRSA,
+                                                   kSecMatchBits: keyBase64.count * 8 ,
+                                                   kSecReturnPersistentRef: true,
+                                                   kSecAttrKeyClass: kSecAttrKeyClassPublic] as NSDictionary, nil)
+        return sec
     }
     
     // 使用'.12'私钥文件解密 11
     public func encryptData(data:Data, pubKey: String = kRSAPublicKey) throws -> Data {
-        let keyRef = try PublicKey(pemEncoded: pubKey).reference
+        let keyRef = getPublicSecKey()!
         let padding = SecPadding.PKCS1
         let blockSize = SecKeyGetBlockSize(keyRef)
               
@@ -134,7 +146,7 @@ static func bese64_decode(str:String) -> Data {
     
     /// 使用私钥字符串解密 13
     public func decryptData(data: [UInt8], privKey:String = kRSAPrivateKey) throws -> [UInt8] {
-        let keyRef = try PrivateKey(pemEncoded: privKey).reference
+        let keyRef = getPublicSecKey()!
         return self.decryptData(data: data, keyRef: keyRef)// 16
     }
     
@@ -166,17 +178,21 @@ static func bese64_decode(str:String) -> Data {
         return decryptedDataBytes
     }
     
-    public func sign(data: [UInt8]) throws -> [UInt8] {
-        let keyRef = try PrivateKey(pemEncoded: kRSAPrivateKey).reference
-        return RSASign().RSASingNetCon(data: data, privateKey: keyRef) ?? []
+    public func sign(data: [UInt8], algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256) throws -> [UInt8] {
+        let secKey = getPrivateSecKey()!
+        var error: Unmanaged<CFError>?
+        let signature = SecKeyCreateSignature(secKey, algorithm, Data(data) as CFData, &error) as? Data
+        return [UInt8](signature ?? Data())
+    }
+    
+    public func verify(signed: [UInt8], signature: [UInt8], algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256) throws -> Bool {
+        //半天验证不过原来是公钥错误⚠️⚠️⚠️
+        let pubSecKey = getPublicSecKey()!
+        var error: Unmanaged<CFError>?
+        let ret = SecKeyVerifySignature(pubSecKey, algorithm, Data(signed) as CFData, Data(signature) as CFData, &error)
+        if !ret {
+            //print("\(error?.takeRetainedValue())")
+        }
+        return ret
     }
 }
-
-
-
-
-
-
-
-
-

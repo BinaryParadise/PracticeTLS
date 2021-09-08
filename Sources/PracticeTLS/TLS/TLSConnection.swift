@@ -8,6 +8,7 @@
 import Foundation
 import CocoaAsyncSocket
 import CryptoSwift
+import SecurityRSA
 
 public let TLSClientFinishedLabel = [UInt8]("client finished".utf8)
 public let TLSServerFinishedLabel = [UInt8]("server finished".utf8)
@@ -112,10 +113,10 @@ public class TLSConnection: NSObject {
                     //PS：TMD这里要完整的，而不是28字节⚠️⚠️⚠️⚠️⚠️
                     securityParameters.clientRandom = clientHello.random.dataWithBytes()
                     handshakeMessages.append(clientHello)
-                    sendHandshake(handshake.responseMessage())
+                    sendHandshake(handshake.nextMessage)
                 case is TLSClientKeyExchange:
                     let exchange = msg as! TLSClientKeyExchange
-                    preMasterKey = exchange.preMasterSecret.preMasterKey
+                    preMasterKey = exchange.preMasterKey
                     setPendingSecurityParametersForCipherSuite(cipherSuite)
                     handshakeMessages.append(handshake)
                 case is TLSEncryptedMessage:
@@ -128,7 +129,7 @@ public class TLSConnection: NSObject {
                     //print("let clientVerifyData:[UInt8] = [\(clientFinishedMsg.dataWithBytes().toHexArray())]")
                     handshakeMessages.append(clientFinishedMsg)
                     securityParameters.read?.sequenceNumber += 1
-                    sendHandshake(handshake.responseMessage())
+                    sendHandshake(handshake.nextMessage)
                 default: break
                 }
             }
@@ -176,6 +177,7 @@ public class TLSConnection: NSObject {
     
     func sendHandshake(_ msg: TLSHandshakeMessage?) -> Void {
         guard let msg = msg else { return }
+        nextMessage = msg.nextMessage
         switch msg {
         case is TLSHelloRetryRequest:
             //TODO:要还是不要？
@@ -189,14 +191,18 @@ public class TLSConnection: NSObject {
             http2Enabled = serverHello.extend(.application_layer_protocol_negotiation) != nil
             
             handshakeMessages.append(msg)
-            nextMessage = msg.responseMessage()
             
             isTLS1_3Enabled = serverHello.extend(.supported_versions) != nil
+            let ecdh = TLSCipherSuiteDescriptionDictionary[cipherSuite]?.keyExchangeAlgorithm == .ecdhe
             if isTLS1_3Enabled {
                 securityParameters.preMasterSecret = serverHello.client!.keyExchange
                 if let exchange = securityParameters.setupExchange() {
                     serverHello.keyExchange(keyExchange: exchange)
                     setPendingSecurityParametersForCipherSuite(cipherSuite)
+                }
+            } else if ecdh {
+                if let exchange = securityParameters.setupExchange() {
+                    serverHello.serverKeyExchange(exchange)
                 }
             }
             
@@ -207,7 +213,6 @@ public class TLSConnection: NSObject {
             sock.writeData(data: msg.dataWithBytes(), tag: .changeCipherSpec)
         default:
             handshakeMessages.append(msg)
-            nextMessage = msg.responseMessage()
             sock.writeData(data: msg.dataWithBytes(), tag: .handshake(msg.handshakeType))
         }
     }
@@ -260,6 +265,13 @@ extension TLSConnection: GCDAsyncSocketDelegate {
             if let msg = nextMessage {
                 nextMessage = nil
                 if isTLS1_3Enabled {
+                    let rsa = RSAEncryptor()
+                    do {
+                        let signed = try rsa.sign(data: msg.dataWithBytes())
+                        LogInfo("\(signed)")
+                    } catch {
+                        LogError("\(error)")
+                    }
                     let encryptedData = securityParameters.encrypt(msg.dataWithBytes(), contentType: .applicatonData, iv: nil) ?? []
                     securityParameters.write?.sequenceNumber += 1
                     let clientFinishedMsg = verifyDataForFinishedMessage(isClient: true)

@@ -19,6 +19,7 @@ class TLSEncryptedMessage: TLSHandshakeMessage {
         stream.position = 5
         message = stream.readToEnd() ?? []
         super.init(stream: DataStream(stream.data))
+        nextMessage = TLSChangeCipherSpec()
     }
     
     override func dataWithBytes() -> [UInt8] {
@@ -28,10 +29,5 @@ class TLSEncryptedMessage: TLSHandshakeMessage {
         data.append(contentsOf: UInt16(message.count).bytes)
         data.append(contentsOf: message)
         return data
-    }
-    
-    override func responseMessage() -> TLSHandshakeMessage? {
-        let res = TLSChangeCipherSpec()
-        return res
     }
 }

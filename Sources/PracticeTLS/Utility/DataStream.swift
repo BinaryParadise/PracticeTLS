@@ -102,6 +102,12 @@ public class DataStream {
     }
 }
 
+extension Int {
+    public var bytes: [UInt8] {
+        return UInt(self).bytes
+    }
+}
+
 extension UInt {
     public var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 24),
@@ -150,6 +156,10 @@ extension Array where Element == UInt8 {
     
     public var stream: DataStream {
         return DataStream(self)
+    }
+    
+    public var data: Data {
+        return Data(self)
     }
 }
 

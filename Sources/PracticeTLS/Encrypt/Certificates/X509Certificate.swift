@@ -43,10 +43,10 @@ public struct X509
             }
         }
         
-        init?(signatureAlgorithm: PracticeTLS.SignatureAlgorithm, hashAlgorithm: HashAlgorithm)
+        init?(signatureAlgorithm: SignatureAlgorithm, hashAlgorithm: HashAlgorithm)
         {
             switch signatureAlgorithm {
-            case .rsa:
+            case .rsaEncryption:
                 self = .rsa_pkcs1(hash: hashAlgorithm)
                 
             case .ecdsa:

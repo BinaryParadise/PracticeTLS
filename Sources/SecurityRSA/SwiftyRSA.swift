@@ -347,3 +347,41 @@ extension NSTextCheckingResult {
     }
 }
 #endif
+
+public extension String {
+    var uint8Array: [UInt8] {
+        var result: [UInt8] = []
+        var even: Bool = true
+        var byte: UInt8 = 0
+        func decodeByte(c: UInt8) -> UInt8? {
+            switch c {
+            case 0x30...0x39: return c - 0x30
+            case 0x41...0x46: return c - 0x41 + 10
+            case 0x61...0x66: return c - 0x61 + 10
+            default:
+                return nil
+            }
+        }
+        for c in utf8 {
+            guard let val = decodeByte(c: c) else { continue }
+            if even {
+                byte = val << 4
+            } else {
+                byte += val
+                result.append(byte)
+            }
+            even = !even
+        }
+        return result
+    }
+    
+    var rsaCleanKey: String {
+        if contains("BEGIN") {
+            var arr = self.split(separator: "\n")
+            arr.removeFirst()
+            arr.removeLast()
+            return arr.joined()
+        }
+        return self
+    }
+}

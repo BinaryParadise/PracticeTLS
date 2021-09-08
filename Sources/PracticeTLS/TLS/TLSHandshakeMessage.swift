@@ -9,10 +9,7 @@ import Foundation
 
 public class TLSHandshakeMessage: TLSMessage {
     var handshakeType: TLSHandshakeType = .clientHello
-    
-    public func responseMessage() -> TLSHandshakeMessage? {
-        return nil
-    }
+    var nextMessage: TLSHandshakeMessage?
 
     public override class func fromData(data: [UInt8]) -> TLSMessage? {
         guard let header = readHeader(stream: data.stream) else {

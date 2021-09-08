@@ -106,7 +106,7 @@ func TLSExtensionsfromData(_ data: [UInt8]) -> [TLSExtension] {
                     exts.append(TLSSupportedVersionsExtension(stream: stream)!)
                 case .key_share:
                     //启用TLS 1.3
-                    #if false
+                    #if true
                     exts.append(TLSKeyShareExtension(stream: stream, handshake: .clientHello)!)
                     #else
                     ignoreExtension()
@@ -249,7 +249,7 @@ struct KeyShareEntry: Streamable {
 }
 
 extension Data {
-    var bytes: [UInt8] {
+    var uint8Array: [UInt8] {
         return [UInt8](self)
     }
 }

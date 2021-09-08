@@ -8,36 +8,36 @@
 import Foundation
 
 public class ECDHEncryptor {
-    var privateKey1: SecKey?
-    var publicKey1: SecKey?
+    let attributes = [
+        kSecAttrKeySizeInBits: 256,
+        SecKeyKeyExchangeParameter.requestedSize.rawValue: 32,
+        kSecAttrKeyType: kSecAttrKeyTypeEC,
+        kSecPrivateKeyAttrs: [kSecAttrIsPermanent: false]] as CFDictionary
+    var privateKey1: SecKey
+    var publicKey1: SecKey
+    var publicKey2: SecKey?
     var shared1: [UInt8] = []
     
-    public init(_ publicKey2: [UInt8]) {
-        generateKey(publicKey2)
+    public init() {
+        var error: Unmanaged<CFError>?
+        privateKey1 = SecKeyCreateRandomKey(attributes as CFDictionary, &error)!
+        if let e = error?.takeRetainedValue() {
+            LogError("\(e)")
+        }
+        publicKey1 = SecKeyCopyPublicKey(privateKey1)!
     }
     
     func exportPublickKey() -> [UInt8] {
-        guard let pubKey = publicKey1 else { return []}
         var error: Unmanaged<CFError>?
-        guard let data = SecKeyCopyExternalRepresentation(pubKey, &error) as Data? else {
+        guard let data = SecKeyCopyExternalRepresentation(publicKey1, &error) as Data? else {
             LogError("\(error!.takeRetainedValue() as Error)")
             return []
         }
         return data.bytes
     }
     
-    func generateKey(_ pubKey: [UInt8]) {
-        let attributes = [
-            kSecAttrKeySizeInBits: 256,
-            SecKeyKeyExchangeParameter.requestedSize.rawValue: 32,
-            kSecAttrKeyType: kSecAttrKeyTypeEC,
-            kSecPrivateKeyAttrs: [kSecAttrIsPermanent: false]] as CFDictionary
+    public func exchange(_ pubKey: [UInt8]) {
         var error: Unmanaged<CFError>?
-           
-        privateKey1 = SecKeyCreateRandomKey(attributes as CFDictionary, &error)
-        
-        publicKey1 = SecKeyCopyPublicKey(privateKey1!)
-                
         let pubAttrs = [
             kSecAttrKeyClass: kSecAttrKeyClassPublic,
             kSecAttrKeyType: kSecAttrKeyTypeEC] as CFDictionary
@@ -46,9 +46,11 @@ public class ECDHEncryptor {
             return
         }
         
+        publicKey2 = pubKey2
+        
         LogWarn("\(pubKey2)")
         
-        guard let shared1 = SecKeyCopyKeyExchangeResult(privateKey1!, .ecdhKeyExchangeStandardX963SHA256, pubKey2, attributes, &error) as Data? else {
+        guard let shared1 = SecKeyCopyKeyExchangeResult(privateKey1, .ecdhKeyExchangeStandardX963SHA256, pubKey2, attributes, &error) as Data? else {
             LogError("\(error!.takeRetainedValue() as Error)")
             return
         }
@@ -82,12 +84,8 @@ public class ECDHEncryptor {
     }*/
     
     public func encrypt(_ sourceData: [UInt8], algorithm: SecKeyAlgorithm = .eciesEncryptionStandardX963SHA512AESGCM) -> [UInt8]? {
-        guard let publicKey = publicKey1 else {
-            return nil
-        }
-        
         var error: Unmanaged<CFError>?
-        let encrypted = SecKeyCreateEncryptedData(publicKey, algorithm,
+        let encrypted = SecKeyCreateEncryptedData(publicKey1, algorithm,
                                       Data(sourceData) as CFData,
                                       &error)
         if error == nil {
@@ -99,9 +97,8 @@ public class ECDHEncryptor {
     }
     
     func decrypt(_ sourceData: [UInt8], algorithm: SecKeyAlgorithm = .eciesEncryptionStandardX963SHA512AESGCM) -> [UInt8]? {
-        guard let privateKey = privateKey1 else { return nil }
         var error: Unmanaged<CFError>?
-        let resData = SecKeyCreateDecryptedData(privateKey, algorithm,
+        let resData = SecKeyCreateDecryptedData(privateKey1, algorithm,
                                                 Data(sourceData) as CFData, &error)
         
         if error == nil {

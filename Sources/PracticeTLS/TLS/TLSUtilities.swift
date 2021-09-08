@@ -41,8 +41,8 @@ public enum CipherSuite: UInt16 {
     case TLS_RSA_WITH_AES_256_CBC_SHA           = 0x0035
     case TLS_RSA_WITH_AES_256_CBC_SHA256        = 0x003d
     case TLS_RSA_WITH_AES_128_GCM_SHA256        = 0x009c
-    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA     = 0xc014
-    
+    case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256  = 0xc02f
+
     // TLS 1.3 cipher suites.
     // The key exchange method is no longer part of the cipher suite, so
     // these can't be used for TLS 1.2 and TLS 1.2 cipher suites can't
@@ -60,8 +60,6 @@ public enum CipherSuite: UInt16 {
             return "TLS_RSA_WITH_AES_256_CBC_SHA256"
         case .TLS_RSA_WITH_AES_128_GCM_SHA256:
             return "TLS_RSA_WITH_AES_128_GCM_SHA256"
-        case .TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
-            return "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
         case .TLS_AES_128_CCM_SHA256:
             return "TLS_AES_128_CCM_SHA256"
         default:

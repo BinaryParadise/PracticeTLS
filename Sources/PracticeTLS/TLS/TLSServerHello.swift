@@ -33,7 +33,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         sessionID = client.sessionID ?? []
         type = .handeshake
         handshakeType = .serverHello
-        //支持h2
+        //启用h2
         #if false
         extensions = [.init(type: .application_layer_protocol_negotiation, length: 5, ext: [0x00, 0x03, 0x02, 0x68, 0x32])]
         extLen = 9
@@ -61,20 +61,28 @@ public class TLSServerHello: TLSHandshakeMessage {
                         
             cipherSuite = .TLS_AES_128_GCM_SHA256
         } else {
-            if client.cipherSuites.contains(.TLS_RSA_WITH_AES_128_GCM_SHA256) {
-                cipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
+            let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            if client.cipherSuites.contains(expectedCipher) {
+                cipherSuite = expectedCipher
+            }
+        }
+        
+        let cert = TLSCertificate()
+        cert.version = version
+        cert.nextMessage = TLSServerHelloDone()
+        nextMessage = cert
+    }
+    
+    func serverKeyExchange(_ pubKey: [UInt8]) {
+        if let cert = nextMessage as? TLSCertificate {
+            if let desc = TLSCipherSuiteDescriptionDictionary[cipherSuite], desc.keyExchangeAlgorithm == .ecdhe {
+                cert.nextMessage = try? TLSServerKeyExchange(cipherSuite, pubKey: pubKey, serverHello: self)
             }
         }
     }
     
     required init?(stream: DataStream) {
         fatalError("init(stream:) has not been implemented")
-    }
-    
-    public override func responseMessage() -> TLSHandshakeMessage? {        
-        let cert = TLSCertificate()
-        cert.version = version
-        return cert
     }
     
     func extend(_ type: TLSExtensionType) -> TLSExtension? {

@@ -9,12 +9,11 @@ import Foundation
 import SecurityRSA
 
 class EncryptedPreMasterSecret {
-    var preLength: UInt16 = 0
     var encryptedPreMaster: [UInt8] = []
     var preMasterKey: [UInt8] = []
-    init(_ stream: DataStream) {
-        preLength = stream.readUInt16()!
-        encryptedPreMaster = stream.read(count: Int(preLength))!
+    init?(_ stream: DataStream) {
+        guard let l = stream.readUInt16() else {return nil}
+        encryptedPreMaster = stream.read(count: Int(l))!
         let rsa = RSAEncryptor()
         do {
             let preMasterSecret = try rsa.decryptData(data: encryptedPreMaster)
@@ -27,15 +26,27 @@ class EncryptedPreMasterSecret {
 
 class TLSClientKeyExchange: TLSHandshakeMessage {
     var bodyLength: Int = 0
-    var preMasterSecret: EncryptedPreMasterSecret
-    var encryptedMessage: TLSEncryptedMessage?
+    private var preMasterSecret: EncryptedPreMasterSecret?
+    var ecdhParams: ECDHServerParams?
+    
+    var preMasterKey: [UInt8] {
+        if let preMasterSecret = preMasterSecret {
+            return preMasterSecret.preMasterKey
+        } else {
+            return ecdhParams!.pubKey
+        }
+    }
     
     required init?(stream: DataStream) {
         stream.position = 5
         let _handshakeType = TLSHandshakeType(rawValue: stream.readByte()!)!
         bodyLength = stream.readUInt24()!
+        //TODO: context
         preMasterSecret = EncryptedPreMasterSecret(stream)
-        super.init(stream: DataStream(stream.data))
+        if preMasterSecret == nil {
+            ecdhParams = ECDHServerParams(stream: stream)
+        }
+        super.init(stream: stream)
         handshakeType = _handshakeType
     }
     
@@ -43,8 +54,13 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
         var bytes:[UInt8] = []
         bytes.append(handshakeType.rawValue)
         bytes.append(contentsOf: UInt(bodyLength).bytes[1...3])
-        bytes.append(contentsOf: preMasterSecret.preLength.bytes)
-        bytes.append(contentsOf: preMasterSecret.encryptedPreMaster)
+        if let preMaster = preMasterSecret {
+            bytes.append(contentsOf: UInt16(preMaster.encryptedPreMaster.count).bytes)
+            bytes.append(contentsOf: preMaster.encryptedPreMaster)
+        } else if let ecdhp = ecdhParams {
+            bytes.append(UInt8(ecdhp.pubKey.count))
+            bytes.append(contentsOf: ecdhp.pubKey)
+        }
         return bytes
     }
 }

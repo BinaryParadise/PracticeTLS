@@ -84,9 +84,26 @@ public enum HashAlgorithm : UInt8 {
         }
     }
 }
+
 enum SignatureAlgorithm : UInt8 {
     case anonymous  = 0
     case rsa        = 1
     case dsa        = 2
     case ecdsa      = 3
+}
+
+struct TLSSignedData {
+    var hashAlgorithm : HashAlgorithm
+    var signatureAlgorithm : SignatureAlgorithm
+    
+    var signature : [UInt8]
+    
+    var bytes: [UInt8] {
+        var b: [UInt8] = []
+        b.append(hashAlgorithm.rawValue)
+        b.append(signatureAlgorithm.rawValue)
+        b.append(contentsOf: UInt16(signature.count).bytes)
+        b.append(contentsOf: signature)
+        return b
+    }
 }

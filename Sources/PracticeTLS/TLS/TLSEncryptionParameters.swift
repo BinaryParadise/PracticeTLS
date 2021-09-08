@@ -70,7 +70,7 @@ public class TLSSecurityParameters
     }
     
     func setupExchange() -> [UInt8]? {
-        ecdh = ECDHEncryptor(preMasterSecret)
+        ecdh = ECDHEncryptor()
         return ecdh?.exportPublickKey()
     }
     
