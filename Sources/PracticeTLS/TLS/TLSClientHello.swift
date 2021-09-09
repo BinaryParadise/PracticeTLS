@@ -19,6 +19,7 @@ public class TLSClientHello: TLSHandshakeMessage {
 
     public override init?(stream: DataStream, context: TLSConnection) {
         super.init(stream: stream, context: context)
+        stream.readUInt16()
         random = Random(stream: (stream.read(count: 32) ?? []).stream)
         if let len = stream.readByte(), len > 0 {
             sessionID = stream.read(count: Int(len))

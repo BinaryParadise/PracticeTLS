@@ -25,14 +25,12 @@ public class TLSServerHello: TLSHandshakeMessage {
     var client: TLSClientHello?
 
     init(client: TLSClientHello) {
+        super.init(.serverHello)
         self.client = client
-        super.init()
         
         keyExchange()
     
         sessionID = client.sessionID ?? []
-        type = .handeshake
-        handshakeType = .serverHello
         //启用h2
         #if false
         extensions = [.init(type: .application_layer_protocol_negotiation, length: 5, ext: [0x00, 0x03, 0x02, 0x68, 0x32])]

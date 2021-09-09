@@ -8,12 +8,42 @@
 import Foundation
 import CryptoSwift
 
-/// 报文类型
-public enum TLSMessageType: UInt8 {
+public enum ContentType: UInt8 {
     case changeCipherSpec = 20
     case alert            = 21
     case handeshake       = 22
     case applicatonData   = 23
+}
+
+/// 消息类型
+public enum TLSMessageType {
+    case changeCipherSpec
+    case handshake(TLSHandshakeType)
+    case alert
+    case applicationData
+    
+    init(rawValue: UInt8) {
+        guard let type = ContentType(rawValue: rawValue) else { fatalError("") }
+        switch type {
+        case .changeCipherSpec: self = .changeCipherSpec
+        case .alert: self = .alert
+        case .handeshake: self = .handshake(.clientHello)
+        case .applicatonData: self = .applicationData
+        }
+    }
+    
+    var rawValue: UInt8 {
+        switch self {
+        case .changeCipherSpec:
+            return ContentType.changeCipherSpec.rawValue
+        case .handshake(_):
+            return ContentType.handeshake.rawValue
+        case .alert:
+            return ContentType.alert.rawValue
+        case .applicationData:
+            return ContentType.applicatonData.rawValue
+        }
+    }
 }
 
 public struct TLSVersion: Comparable, RawRepresentable, CustomStringConvertible {
@@ -59,7 +89,7 @@ public struct TLSVersion: Comparable, RawRepresentable, CustomStringConvertible 
     }
 }
 
-enum TLSHandshakeType: UInt8 {
+public enum TLSHandshakeType: UInt8 {
     case helloRequest          = 0
     case clientHello           = 1
     case serverHello           = 2

@@ -8,21 +8,26 @@
 import Foundation
 
 public class TLSHandshakeMessage: TLSMessage {
-    var handshakeType: TLSHandshakeType = .clientHello
+    var handshakeType: TLSHandshakeType {
+        switch type {        
+        case .handshake(let handshakeType):
+            return handshakeType
+        default:
+            fatalError("")
+        }
+    }
     var clientVersion: TLSVersion = .V1_2
     var nextMessage: TLSHandshakeMessage?
     var encrypted: [UInt8] = []
     
     init(_ type: TLSHandshakeType = .clientHello) {
-        self.handshakeType = type
-        super.init(.handeshake)
+        super.init(.handshake(type))
     }
     
     public override init?(stream: DataStream, context: TLSConnection) {
         super.init(stream: stream, context: context)
-        handshakeType = TLSHandshakeType(rawValue: stream.readByte() ?? UInt8.max) ?? .clientHello
+        type = .handshake(TLSHandshakeType(rawValue: stream.readByte() ?? UInt8.max) ?? .clientHello)
         stream.readUInt24()
-        clientVersion = TLSVersion(rawValue: stream.readUInt16() ?? 0)
     }
     
     override func dataWithBytes() -> [UInt8] {
@@ -38,7 +43,7 @@ public class TLSHandshakeMessage: TLSMessage {
     class func handshakeMessageFromData(data: [UInt8], context: TLSConnection) -> TLSMessage? {
         guard let header = readHeader(stream: data.stream) else {
             var msg = TLSHandshakeMessage(stream: data.stream, context: context)
-            msg?.handshakeType = .finished
+            msg?.type = .handshake(.finished)
             return msg
         }
         

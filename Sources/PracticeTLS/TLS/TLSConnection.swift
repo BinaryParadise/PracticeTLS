@@ -67,7 +67,7 @@ public class TLSConnection: NSObject {
         s.hmac                = cipherSuiteDescriptor.hashAlgorithm.macAlgorithm
         s.preMasterSecret = preMasterKey
         keyExchange = cipherSuiteDescriptor.keyExchangeAlgorithm
-        s.transformParamters()
+        s.keyExchange(algorithm: keyExchange, preMasterSecret: preMasterKey)
     }
     
     func verifyDataForFinishedMessage(isClient: Bool) -> TLSFinished {
@@ -75,7 +75,7 @@ public class TLSConnection: NSObject {
         var handshakeData: [UInt8] = []
         for msg in handshakeMessages {
             let d = msg.messageData()
-            //print("//msg => \(d.count)")
+            print("//\(msg.type) => \(d.count) \(d.toHexString())")
             handshakeData.append(contentsOf: d)
         }
         let transcriptHash = securityParameters.hashAlgorithm.hashFunction(handshakeData.dropLast(0))
@@ -97,17 +97,17 @@ public class TLSConnection: NSObject {
     
     public func writeApplication(data: [UInt8], tag: Int) {
         readWriteTag = tag
-        let encryptedData = securityParameters.encrypt(data, contentType: .applicatonData, iv: nil) ?? []
+        let encryptedData = securityParameters.encrypt(data, contentType: .applicationData, iv: nil) ?? []
         securityParameters.write?.sequenceNumber += 1
         sendMessage(msg: TLSApplicationData(encryptedData))
     }
     
-    public func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) {
+    public func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws {
         LogDebug("\(msg.type) -> \(rawData.count)")
         switch msg.type {
         case .changeCipherSpec:
             break
-        case .handeshake:
+        case .handshake(_):
             if let handshake = msg as? TLSHandshakeMessage {
                 switch handshake.handshakeType {
                 case .clientHello:
@@ -120,16 +120,14 @@ public class TLSConnection: NSObject {
                     let exchange = msg as! TLSClientKeyExchange
                     preMasterKey = exchange.preMasterKey
                     setPendingSecurityParametersForCipherSuite(cipherSuite)
-                    if keyExchange == .ecdhe {
-                        securityParameters.transformParamters()
-                    }
                     handshakeMessages.append(handshake)
                 case .finished:
-                    securityParameters.clientVerifyData = decryptAndVerifyMAC(contentType: handshake.type, data: handshake.messageData()) ?? []
+                    securityParameters.clientVerifyData = try decryptAndVerifyMAC(contentType: handshake.type, data: handshake.messageData()) ?? []
                     //print("let cipherData:[UInt8] = [\(em.message.toHexArray())]")
                     //print("\(securityParameters.description)")
-                    //大坑：回复给客户端的finish也需要包含在校验的握手消息中⚠️⚠️⚠️⚠️⚠️
+                    //踩坑：发送给客户端的finish也需要包含在摘要的握手消息中⚠️⚠️⚠️⚠️⚠️
                     let clientFinishedMsg = verifyDataForFinishedMessage(isClient: true)
+                    assert(securityParameters.clientVerifyData == clientFinishedMsg.dataWithBytes())
                     //print("let clientVerifyData:[UInt8] = [\(clientFinishedMsg.dataWithBytes().toHexArray())]")
                     handshakeMessages.append(clientFinishedMsg)
                     securityParameters.read?.sequenceNumber += 1
@@ -140,7 +138,7 @@ public class TLSConnection: NSObject {
         case .alert:
             var alert: TLSAlert?
             if handshaked {
-                if let d = securityParameters.decrypt([UInt8](rawData[5...]), contentType: .alert) {
+                if let d = try securityParameters.decrypt([UInt8](rawData[5...]), contentType: .alert) {
                     alert = TLSAlert(stream: ([UInt8](rawData[0...4]) + d).stream, context: self)
                 }
             } else {
@@ -154,17 +152,17 @@ public class TLSConnection: NSObject {
             } else {
                 LogError("alert未识别 -> \(rawData.count)")
             }
-        case .applicatonData:
+        case .applicationData:
             let appData = msg as! TLSApplicationData
-            if let httpData = securityParameters.decrypt(appData.encryptedData, contentType: msg.type) {
+            if let httpData = try securityParameters.decrypt(appData.encryptedData, contentType: msg.type) {
                 securityParameters.read?.sequenceNumber += 1
                 TLSSessionManager.shared.delegate?.didReadApplication(httpData, connection: self, tag: readWriteTag)
             }
         }
     }
     
-    private func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) -> [UInt8]? {
-        return securityParameters.decrypt(data, contentType: contentType)
+    private func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) throws -> [UInt8]? {
+        return try securityParameters.decrypt(data, contentType: contentType)
     }
     
     func finishedMessage() -> TLSHandshakeMessage {
@@ -182,12 +180,12 @@ public class TLSConnection: NSObject {
     func sendHandshake(_ msg: TLSHandshakeMessage?) -> Void {
         guard let msg = msg else { return }
         nextMessage = msg.nextMessage
-        switch msg {
-        case is TLSHelloRetryRequest:
+        switch msg.handshakeType {
+        case .helloRetryRequest:
             //TODO:要还是不要？
             handshakeMessages.append(msg)
             sock.writeData(data: msg.dataWithBytes(), tag: .handshake(.helloRetryRequest))
-        case is TLSServerHello:
+        case .serverHello:
             let serverHello = msg as! TLSServerHello
             securityParameters.serverRandom = serverHello.random.dataWithBytes()
             cipherSuite = serverHello.cipherSuite
@@ -197,24 +195,22 @@ public class TLSConnection: NSObject {
             handshakeMessages.append(msg)
             
             isTLS1_3Enabled = serverHello.extend(.supported_versions) != nil
-            keyExchange = TLSCipherSuiteDescriptionDictionary[cipherSuite]?.keyExchangeAlgorithm ?? .rsa
+            keyExchange = TLSCipherSuiteDescriptionDictionary[cipherSuite]!.keyExchangeAlgorithm
             if isTLS1_3Enabled {
                 securityParameters.preMasterSecret = serverHello.client!.keyExchange
                 if let exchange = securityParameters.setupExchange() {
                     serverHello.keyExchange(keyExchange: exchange)
                     setPendingSecurityParametersForCipherSuite(cipherSuite)
                 }
-            } else if keyExchange == .ecdhe {
-                if let exchange = securityParameters.setupExchange() {
-                    serverHello.serverKeyExchange(exchange)
+            } else {
+                if keyExchange == .ecdhe {
+                    if let exchange = securityParameters.setupExchange() {
+                        serverHello.serverKeyExchange(exchange)
+                    }
                 }
             }
             
-            sock.writeData(data: serverHello.dataWithBytes(), tag: .handshake(.serverHello))
-        case is TLSChangeCipherSpec:
-            let change = msg as! TLSChangeCipherSpec
-            version = change.version
-            sock.writeData(data: msg.dataWithBytes(), tag: .changeCipherSpec)
+            sock.writeData(data: serverHello.dataWithBytes(), tag: .handshake(msg.handshakeType))
         default:
             handshakeMessages.append(msg)
             sock.writeData(data: msg.dataWithBytes(), tag: .handshake(msg.handshakeType))
@@ -248,7 +244,11 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                 if stream.endOfStream {
                     lastPacket = true
                 }
-                didReadMessage(msg, rawData: rawData)
+                do {
+                    try didReadMessage(msg, rawData: rawData)
+                } catch {
+                    LogError("\(error)")
+                }
             } else {
                 LogDebug("未识别 -> \(rawData.count)")
             }
@@ -276,7 +276,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                     } catch {
                         LogError("\(error)")
                     }
-                    let encryptedData = securityParameters.encrypt(msg.dataWithBytes(), contentType: .applicatonData, iv: nil) ?? []
+                    let encryptedData = securityParameters.encrypt(msg.dataWithBytes(), contentType: .applicationData, iv: nil) ?? []
                     securityParameters.write?.sequenceNumber += 1
                     let clientFinishedMsg = verifyDataForFinishedMessage(isClient: true)
                     handshakeMessages.append(clientFinishedMsg)

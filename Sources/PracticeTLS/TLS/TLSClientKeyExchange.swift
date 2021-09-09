@@ -37,10 +37,8 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
         }
     }
     
-    required public override init?(stream: DataStream, context: TLSConnection) {
-        stream.position = 5
-        let _handshakeType = TLSHandshakeType(rawValue: stream.readByte()!)!
-        bodyLength = stream.readUInt24()!
+    public override init?(stream: DataStream, context: TLSConnection) {
+        super.init(stream: stream, context: context)
         switch context.keyExchange {
         case .rsa:
             preMasterSecret = EncryptedPreMasterSecret(stream)
@@ -49,18 +47,17 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
         case .ecdhe:
             ecdhParams = ECDHServerParams(stream: stream)
         }
-        super.init(.clientKeyExchange)
-        handshakeType = _handshakeType
     }
     
     override func messageData() -> [UInt8] {
         var bytes:[UInt8] = []
         bytes.append(handshakeType.rawValue)
-        bytes.append(contentsOf: UInt(bodyLength).bytes[1...3])
         if let preMaster = preMasterSecret {
+            bytes.append(contentsOf: UInt(preMaster.encryptedPreMaster.count + 2).bytes[1...3])
             bytes.append(contentsOf: UInt16(preMaster.encryptedPreMaster.count).bytes)
             bytes.append(contentsOf: preMaster.encryptedPreMaster)
         } else if let ecdhp = ecdhParams {
+            bytes.append(contentsOf: UInt(ecdhp.pubKey.count + 2).bytes[1...3])
             bytes.append(UInt8(ecdhp.pubKey.count))
             bytes.append(contentsOf: ecdhp.pubKey)
         }

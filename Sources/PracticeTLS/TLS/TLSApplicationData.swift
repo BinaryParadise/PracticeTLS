@@ -11,7 +11,7 @@ class TLSApplicationData: TLSMessage {
     var encryptedData: [UInt8] = []
     init(_ data: [UInt8]) {
         encryptedData = data
-        super.init(.applicatonData)
+        super.init(.applicationData)
     }
     
     override init?(stream: DataStream, context: TLSConnection) {

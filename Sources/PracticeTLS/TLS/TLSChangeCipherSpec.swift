@@ -10,7 +10,7 @@ import Foundation
 class TLSChangeCipherSpec: TLSMessage {
     var isClient: Bool = false
     
-    override init(_ type: TLSMessageType = .handeshake) {
+    init() {
         super.init(.changeCipherSpec)
     }
     

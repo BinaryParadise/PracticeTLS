@@ -22,7 +22,6 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
         ]
         super.init(.helloRetryRequest)
 
-        handshakeType = .serverHello
         sessionID = client.sessionID
         
         extensions.append(TLSSupportedVersionsExtension())

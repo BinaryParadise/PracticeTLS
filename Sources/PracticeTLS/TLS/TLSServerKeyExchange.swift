@@ -61,7 +61,6 @@ class TLSServerKeyExchange: TLSHandshakeMessage {
         let plantData = serverHello.client!.random.dataWithBytes()+serverHello.random.dataWithBytes()+params.parametersData()
         signedData = try TLSSignedData(hashAlgorithm: .sha256, signatureAlgorithm: .rsa, signature: RSAEncryptor().sign(data: plantData))
         super.init(.serverKeyExchange)
-        handshakeType = .serverKeyExchange
         nextMessage = TLSServerHelloDone()
     }
     

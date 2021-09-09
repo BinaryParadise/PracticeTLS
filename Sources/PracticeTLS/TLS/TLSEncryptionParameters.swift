@@ -20,7 +20,7 @@ public class TLSSecurityParameters
     public var recordIVLength : Int = 0
     public var hashAlgorithm: HashAlgorithm = .sha256
     public var hmac: MACAlgorithm
-    public var preMasterSecret: [UInt8] = []
+    var preMasterSecret: [UInt8] = []
     public var masterSecret : [UInt8] = []
     public var clientRandom : [UInt8] = []
     public var serverRandom : [UInt8] = []
@@ -74,10 +74,10 @@ public class TLSSecurityParameters
         return ecdh?.exportPublickKey()
     }
     
-    func transformParamters() {
-        if let ecdh = ecdh {
-            ecdh.exchange(preMasterSecret)
-            preMasterSecret = ecdh.shared1
+    func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8]) {
+        if algorithm == .ecdhe {
+            ecdh?.exchange(preMasterSecret)
+            self.preMasterSecret = ecdh?.shared1 ?? []
         }
         masterSecret = masterSecret(preMasterSecret, seed: clientRandom+serverRandom)
         let hmacSize = cipherType == .aead ? 0 : hmac.size
@@ -142,7 +142,7 @@ public class TLSSecurityParameters
 }
 
 extension TLSSecurityParameters {
-    public func encrypt(_ data: [UInt8], contentType: TLSMessageType = .handeshake, iv: [UInt8]? = nil) -> [UInt8]? {
+    public func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]? = nil) -> [UInt8]? {
         //PS: CryptoSwift的padding处理异常导致加解密有问题⚠️⚠️⚠️
         guard let write = write else { return [] }
         let isAEAD = cipherType == .aead
@@ -160,12 +160,12 @@ extension TLSSecurityParameters {
             }
             return recordIV+cipherText
         } catch {
-            LogError("AES加密：\(error)")
+            fatalError("AES加密：\(error)")
         }
         return nil
     }
     
-    public func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType = .handeshake) -> [UInt8]? {
+    public func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
         guard let read = read else { return nil }
         let isAEAD = cipherType == .aead
         let IV = (isAEAD ? read.fixedIV :[]) + [UInt8](encryptedData[0..<recordIVLength])
@@ -179,10 +179,10 @@ extension TLSSecurityParameters {
             cipherText = [UInt8](encryptedData[recordIVLength..<encryptedData.count])
         }
         
-        do {
-            let macHeader = isAEAD ? MACHeader(contentType, dataLength: encryptedData.count - recordIVLength - blockLength, isRead: true) : []
-            let blockMode: BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, authenticationTag: authTag, additionalAuthenticatedData: macHeader)
+        let macHeader = isAEAD ? MACHeader(contentType, dataLength: encryptedData.count - recordIVLength - blockLength, isRead: true) : []
+        let blockMode: BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, authenticationTag: authTag, additionalAuthenticatedData: macHeader)
 
+        do {
             let aes = try AES(key: read.bulkKey, blockMode: blockMode, padding: blockCipherMode == .cbc ? .pkcs7: .noPadding)
             let message = try aes.decrypt(cipherText)
             if isAEAD {
@@ -199,10 +199,12 @@ extension TLSSecurityParameters {
             if MAC == messageMAC {
                 return messageContent
             } else {
-                LogError("Error: MAC doesn't match")
+                fatalError("Error: MAC doesn't match")
             }
         } catch {
-            LogError("AES解密：\(error)")
+            print("let cipherData: [UInt8] = \"\(encryptedData.toHexString())\".uint8Array")
+            print(description)
+            print("\(error)")
         }
         return nil
     }
