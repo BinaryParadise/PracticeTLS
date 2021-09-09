@@ -20,7 +20,7 @@ public class TLSSecurityParameters
     public var recordIVLength : Int = 0
     public var hashAlgorithm: HashAlgorithm = .sha256
     public var hmac: MACAlgorithm
-    public var preMasterSecret: [UInt8] = []
+    var preMasterSecret: [UInt8] = []
     public var masterSecret : [UInt8] = []
     public var clientRandom : [UInt8] = []
     public var serverRandom : [UInt8] = []
@@ -35,7 +35,7 @@ public class TLSSecurityParameters
     public var isVerifyed: Bool {
         return clientVerifyData == serverVerifyData && clientVerifyData.count > 0
     }
-    
+        
     public var description: String {
         return """
             let preMasterSecret:[UInt8] = [\(preMasterSecret.toHexArray())]
@@ -48,7 +48,7 @@ public class TLSSecurityParameters
             let clientVerifyData:[UInt8] = [\(clientVerifyData.toHexArray())]
             let serverVerifyData:[UInt8] = [\(serverVerifyData.toHexArray())]
             """
-    }    
+    }
     
     init(_ cipherSuite: CipherSuite) {
         guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[cipherSuite]
@@ -67,7 +67,7 @@ public class TLSSecurityParameters
         hmac                = cipherSuiteDescriptor.hashAlgorithm.macAlgorithm
     }
     
-    func transformParamters() {
+    func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8]) {
         masterSecret = masterSecret(preMasterSecret, seed: clientRandom+serverRandom)
         let hmacSize = cipherType == .aead ? 0 : hmac.size
         let numberOfKeyMaterialBytes = 2 * (hmacSize + encodeKeyLength + fixedIVLength)
@@ -131,43 +131,69 @@ public class TLSSecurityParameters
 }
 
 extension TLSSecurityParameters {
-    public func encrypt(_ data: [UInt8], contentType: TLSMessageType = .handeshake, iv: [UInt8]? = nil) -> [UInt8]? {
+    public func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]? = nil) -> [UInt8]? {
         //PS: CryptoSwift的padding处理异常导致加解密有问题⚠️⚠️⚠️
         guard let write = write else { return [] }
-        let MAC = calculateMessageMAC(secret: write.MACKey, contentType: contentType, data: data, isRead: false)!
+        let isAEAD = cipherType == .aead
+        let MAC = isAEAD ? [] : calculateMessageMAC(secret: write.MACKey, contentType: contentType, data: data, isRead: false)!
         let myPlantText = data + MAC
-        let IV = iv ?? AES.randomIV(recordIVLength)
+        let recordIV = iv ?? AES.randomIV(recordIVLength)
+        let IV = (isAEAD ? write.fixedIV:[]) + recordIV
         do {
-            let aes = try AES(key: write.bulkKey, blockMode: CBC(iv: IV), padding: .pkcs7)
-            let cipherText = try aes.encrypt(myPlantText)
-            return IV+cipherText
+            let macHeader = isAEAD ? MACHeader(contentType, dataLength: myPlantText.count, isRead: false) : []
+            let blockMode:BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, additionalAuthenticatedData: macHeader)
+            let aes = try AES(key: write.bulkKey, blockMode: blockMode, padding: blockCipherMode == .cbc ? .pkcs7 : .noPadding)
+            var cipherText = try aes.encrypt(myPlantText)
+            if let gcm = blockMode as? GCM {
+                cipherText += gcm.authenticationTag ?? []
+            }
+            return recordIV+cipherText
         } catch {
-            LogError("AES加密：\(error)")
+            fatalError("AES加密：\(error)")
         }
         return nil
     }
     
-    public func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType = .handeshake) -> [UInt8]? {
+    public func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
         guard let read = read else { return nil }
-        let IV = [UInt8](encryptedData[0..<recordIVLength])
-        let cipherText = [UInt8](encryptedData[recordIVLength...])
+        let isAEAD = cipherType == .aead
+        let IV = (isAEAD ? read.fixedIV :[]) + [UInt8](encryptedData[0..<recordIVLength])
+        let cipherText: [UInt8]
         
+        var authTag : [UInt8] = []
+        if blockCipherMode == .gcm {
+            cipherText = [UInt8](encryptedData[recordIVLength..<(encryptedData.count - blockLength)])
+            authTag = [UInt8](encryptedData[(encryptedData.count - blockLength)..<encryptedData.count])
+        } else {
+            cipherText = [UInt8](encryptedData[recordIVLength..<encryptedData.count])
+        }
+        
+        let macHeader = isAEAD ? MACHeader(contentType, dataLength: encryptedData.count - recordIVLength - blockLength, isRead: true) : []
+        let blockMode: BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, authenticationTag: authTag, additionalAuthenticatedData: macHeader)
+
         do {
-            let aes = try AES(key: read.bulkKey, blockMode: CBC(iv: IV), padding: .pkcs7)
+            let aes = try AES(key: read.bulkKey, blockMode: blockMode, padding: blockCipherMode == .cbc ? .pkcs7: .noPadding)
             let message = try aes.decrypt(cipherText)
+            if isAEAD {
+                if authTag == (blockMode as? GCM)?.authenticationTag {
+                    return message
+                }
+            }
             let messageLength = message.count - hmac.size
             let messageContent = [UInt8](message[0..<messageLength])
             
-            let MAC = [UInt8](message[messageLength..<messageLength + hmac.size])
+            let MAC = isAEAD ? [] : [UInt8](message[messageLength..<messageLength + hmac.size])
             
             let messageMAC = calculateMessageMAC(secret: read.MACKey, contentType: contentType, data: messageContent, isRead: true)
             if MAC == messageMAC {
                 return messageContent
             } else {
-                LogError("Error: MAC doesn't match")
+                fatalError("Error: MAC doesn't match")
             }
         } catch {
-            LogError("AES解密：\(error)")
+            print("let cipherData: [UInt8] = \"\(encryptedData.toHexString())\".uint8Array")
+            print(description)
+            print("\(error)")
         }
         return nil
     }

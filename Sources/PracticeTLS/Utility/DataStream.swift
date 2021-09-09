@@ -40,11 +40,21 @@ public class DataStream {
         position = 0
     }
     
+    @discardableResult public func read(count: UInt8, cursor: Bool = true) -> [UInt8]? {
+        return read(count: Int(count))
+    }
+    
+    @discardableResult public func read(count: UInt16, cursor: Bool = true) -> [UInt8]? {
+        return read(count: Int(count), cursor: true)
+    }
+    
     ///读取指定数量字节
-    @discardableResult public func read(count: Int) -> [UInt8]? {
+    @discardableResult public func read(count: Int, cursor: Bool = true) -> [UInt8]? {
         if position+count <= origin.count {
             let bytes = [UInt8](origin[position..<position+count])
-            position += bytes.count
+            if cursor {
+                position += bytes.count
+            }
             return bytes
         }
         position = origin.count
@@ -62,20 +72,20 @@ public class DataStream {
     }
     
     /// 读取一个字节
-    public func readByte() -> UInt8? {
-        return read(count: 1)?.first
+    public func readByte(cursor: Bool = true) -> UInt8? {
+        return read(count: 1, cursor: cursor)?.first
     }
     
     /// 读取两个字节
-    public func readUInt16() -> UInt16? {
-        if let bytes = read(count: 2) {
+    @discardableResult public func readUInt16(cursor: Bool = true) -> UInt16? {
+        if let bytes = read(count: 2, cursor: cursor) {
             return UInt16(bytes[0]) << 8 + UInt16(bytes[1])
         }
         return nil
     }
     
     /// 读取三个字节
-    public func readUInt24() -> Int? {
+    @discardableResult public func readUInt24() -> Int? {
         if let bytes = read(count: 3) {
             return Int(bytes[0]) << 16 + Int(bytes[1]) << 8 + Int(bytes[2])
         }
@@ -88,6 +98,12 @@ public class DataStream {
             return UInt(bytes[0])  << 24 + UInt(bytes[1])  << 16 + UInt(bytes[2]) << 8 + UInt(bytes[3])
         }
         return nil
+    }
+}
+
+extension Int {
+    public var bytes: [UInt8] {
+        return UInt(self).bytes
     }
 }
 
@@ -135,6 +151,14 @@ extension Array where Element == UInt8 {
             r += Int64(item << (i * 8))
         }
         return r
+    }
+    
+    public var stream: DataStream {
+        return DataStream(self)
+    }
+    
+    public var data: Data {
+        return Data(self)
     }
 }
 

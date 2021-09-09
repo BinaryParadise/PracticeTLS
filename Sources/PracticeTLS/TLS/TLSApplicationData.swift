@@ -11,13 +11,12 @@ class TLSApplicationData: TLSMessage {
     var encryptedData: [UInt8] = []
     init(_ data: [UInt8]) {
         encryptedData = data
-        super.init()
-        type = .applicatonData
+        super.init(.applicationData)
     }
     
-    required init?(stream: DataStream) {
-        super.init(stream: stream)
-        encryptedData = stream.read(count: Int(contentLength)) ?? []
+    override init?(stream: DataStream, context: TLSConnection) {
+        super.init(stream: stream, context: context)
+        encryptedData = stream.readToEnd() ?? []
     }
     
     override func dataWithBytes() -> [UInt8] {

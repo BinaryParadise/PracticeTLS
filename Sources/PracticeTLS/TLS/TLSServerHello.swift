@@ -9,44 +9,100 @@ import Foundation
 
 public class TLSServerHello: TLSHandshakeMessage {
     var bodyLength: Int = 0
-    var clientVersion: TLSVersion = .V1_2
     var random: Random = Random()
     var sessionID: [UInt8] = []
-    /// 必须选择客户端支持的加密套件，此处仅实现一种
-    var cipherSuite: CipherSuite
+    /// 必须选择客户端支持的加密套件，此处仅实现一两种
+    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = [] //[.init(type: .renegotiation_info, length: 1, ext: [0])]
-    var extLen: UInt16 = 0
+    var extensionLength: UInt16 {
+        return UInt16(extensions.reduce(0, { r, ext in
+            r + ext.dataWithBytes().count
+        }))
+    }
+    
+    var supportVersion: TLSVersion?
+    var client: TLSClientHello?
 
-    override init() {
-        cipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
-        super.init()
-        type = .handeshake
-        handshakeType = .serverHello
-        version = .V1_2
-        //支持h2
-        #if true
+    init(client: TLSClientHello, context: TLSConnection) {
+        super.init(.serverHello)
+        self.client = client
+            
+        sessionID = client.sessionID ?? []
+        
+        contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength
+        bodyLength = Int(contentLength - 4)
+        
+        //启用: h2
+        #if false
+        context.isHTTP2Enabled = true
         extensions = [.init(type: .application_layer_protocol_negotiation, length: 5, ext: [0x00, 0x03, 0x02, 0x68, 0x32])]
         extLen = 9
         #endif
-        contentLength = 42 + (extLen > 0 ? 2 : 0) + extLen
-        bodyLength = Int(contentLength - 4)
-    }
-    
-    required init?(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
-    }
-    
-    public override func responseMessage() -> TLSHandshakeMessage? {
+        
+        //选定TLS版本
+        if let suppertedVersions = client.extensions.first(where: { ext in
+            ext is TLSSupportedVersionsExtension
+        }) as? TLSSupportedVersionsExtension {
+            if suppertedVersions.versions.contains(.V1_3) {
+                supportVersion = .V1_3
+            }
+        }
+        
+        //选定加密套件
+        if supportVersion == .V1_3 {
+            //TODO:pubKey
+            extensions.append(TLSSupportedVersionsExtension())
+            extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: .secp256r1, keyExchange:[]))))
+                        
+            cipherSuite = .TLS_AES_128_GCM_SHA256
+        } else {
+            let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            if client.cipherSuites.contains(expectedCipher) {
+                cipherSuite = expectedCipher
+            }
+        }
+        
+        context.setPendingSecurityParametersForCipherSuite(cipherSuite)
+        context.securityParameters.serverRandom = random.dataWithBytes()
+        version = context.version
+        
         let cert = TLSCertificate()
         cert.version = version
-        return cert
+        nextMessage = cert
+        
+        switch context.keyExchange {
+        case .rsa:
+            cert.nextMessage = TLSServerHelloDone()
+        case .ecdha(let encryptor):
+            serverKeyExchange(encryptor.exportPublickKey())
+        }
+        context.handshakeMessages.append(self)
+        context.handshakeMessages.append(cert)
+        context.handshakeMessages.append(cert.nextMessage!)
+        if let nxt = cert.nextMessage?.nextMessage {
+            context.handshakeMessages.append(nxt)
+        }
+    }
+    
+    func serverKeyExchange(_ pubKey: [UInt8]) {
+        if let cert = nextMessage as? TLSCertificate {
+            if let desc = TLSCipherSuiteDescriptionDictionary[cipherSuite], desc.keyExchangeAlgorithm == .ecdhe {
+                cert.nextMessage = try? TLSServerKeyExchange(cipherSuite, pubKey: pubKey, serverHello: self)
+            }
+        }
+    }
+    
+    func extend(_ type: TLSExtensionType) -> TLSExtension? {
+        return extensions.first { ext in
+            ext.type == type
+        }
     }
     
     override func dataWithBytes() -> [UInt8] {
         var bytes:[UInt8] = []
                 
-        contentLength = 42 + (extLen > 0 ? 2 : 0) + extLen + UInt16(sessionID.count)
+        contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength + UInt16(sessionID.count)
         bodyLength = Int(contentLength - 4)
         
         //header
@@ -57,17 +113,17 @@ public class TLSServerHello: TLSHandshakeMessage {
         //body
         bytes.append(handshakeType.rawValue) // 1 byte
         bytes.append(contentsOf: UInt(bodyLength).bytes[1..<4]) //3 bytes
-        bytes.append(contentsOf: clientVersion.rawValue.bytes) //2 bytes
+        bytes.append(contentsOf: version.rawValue.bytes) //2 bytes
         bytes.append(contentsOf: random.dataWithBytes()) //32 bytes
         bytes.append(UInt8(truncatingIfNeeded: sessionID.count)) //1 byte
         bytes.append(contentsOf: sessionID) //0 or 32 bytes
         bytes.append(contentsOf: cipherSuite.rawValue.bytes) //2 bytes
         bytes.append(compressionMethod.rawValue) //1 byte
         if extensions.count > 0 {
-            bytes.append(contentsOf: extLen.bytes) //2 bytes
-            extensions.forEach { ext in
-                bytes.append(contentsOf: ext.bytes)
-            }
+            bytes.append(contentsOf: extensionLength.bytes) //2 bytes
+            bytes.append(contentsOf: extensions.reduce([], { r, ext in
+                r + ext.dataWithBytes()
+            }))
         }
         return bytes
     }

@@ -81,13 +81,42 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         hashFunction: .sha256
     ),
     CipherSuiteDescriptor(
-        cipherSuite: .TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+        cipherSuite: .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
         keyExchangeAlgorithm: .ecdhe,
-        bulkCipherAlgorithm: .aes256,
-        cipherType: .block,
-        blockCipherMode: .cbc,
-        hashFunction: .sha1
+        bulkCipherAlgorithm: .aes128,
+        cipherType: .aead,
+        blockCipherMode: .gcm,
+        fixedIVLength: 4,
+        recordIVLength: 8,
+        authTagSize: 16,
+        hashFunction: .sha256
     ),
+    
+    CipherSuiteDescriptor(
+        cipherSuite: .TLS_RSA_WITH_AES_128_GCM_SHA256,
+        keyExchangeAlgorithm: .rsa,
+        bulkCipherAlgorithm: .aes128,
+        cipherType: .aead,
+        blockCipherMode: .gcm,
+        fixedIVLength: 4,
+        recordIVLength: 8,
+        authTagSize: 16,
+        hashFunction: .sha256
+    ),
+    
+    // TLS 1.3
+    CipherSuiteDescriptor(
+        cipherSuite: .TLS_AES_128_GCM_SHA256,
+        keyExchangeAlgorithm: .ecdhe,
+        bulkCipherAlgorithm: .aes128,
+        cipherType: .aead,
+        blockCipherMode: .gcm,
+        fixedIVLength: 4,
+        recordIVLength: 8,
+        authTagSize: 16,
+        hashFunction: .sha256,
+        supportedProtocolVersions: [.V1_3]
+    )
 ]
 
 let TLSCipherSuiteDescriptionDictionary : [CipherSuite:CipherSuiteDescriptor] = {

@@ -9,12 +9,11 @@ import Foundation
 import SecurityRSA
 
 class EncryptedPreMasterSecret {
-    var preLength: UInt16 = 0
     var encryptedPreMaster: [UInt8] = []
     var preMasterKey: [UInt8] = []
-    init(_ stream: DataStream) {
-        preLength = stream.readUInt16()!
-        encryptedPreMaster = stream.read(count: Int(preLength))!
+    init?(_ stream: DataStream) {
+        guard let l = stream.readUInt16() else {return nil}
+        encryptedPreMaster = stream.read(count: Int(l))!
         let rsa = RSAEncryptor()
         do {
             let preMasterSecret = try rsa.decryptData(data: encryptedPreMaster)
@@ -26,33 +25,37 @@ class EncryptedPreMasterSecret {
 }
 
 class TLSClientKeyExchange: TLSHandshakeMessage {
-    var bodyLength: Int = 0
-    var preMasterSecret: EncryptedPreMasterSecret
-    var encryptedMessage: TLSEncryptedMessage?
+    private var preMasterSecret: EncryptedPreMasterSecret?
+    private var ecdhParams: ECDHServerParams?
     
-    required init?(stream: DataStream) {
-        stream.position = 5
-        let _handshakeType = TLSHandshakeType(rawValue: stream.readByte()!)!
-        bodyLength = stream.readUInt24()!
-        preMasterSecret = EncryptedPreMasterSecret(stream)
-        super.init(stream: DataStream(stream.data))
-        handshakeType = _handshakeType
-        
-        _ = stream.read(count: 6)
-        encryptedMessage = TLSEncryptedMessage(stream: DataStream(Data(stream.readToEnd() ?? [])))
-    }
-    
-    override func responseMessage() -> TLSHandshakeMessage? {
-        let res = TLSChangeCipherSpec()
-        return res
+    public override init?(stream: DataStream, context: TLSConnection) {
+        super.init(stream: stream, context: context)
+        switch context.keyExchange {
+        case .rsa:
+            preMasterSecret = EncryptedPreMasterSecret(stream)
+            context.preMasterKey = preMasterSecret!.preMasterKey
+        case .ecdha(let encryptor):
+            ecdhParams = ECDHServerParams(stream: stream)
+            context.preMasterKey = ecdhParams!.pubKey
+            if let preMasterSecret = try? encryptor.keyExchange(context.preMasterKey) {
+                context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: preMasterSecret)
+            }
+        }
+        context.handshakeMessages.append(self)
     }
     
     override func messageData() -> [UInt8] {
         var bytes:[UInt8] = []
         bytes.append(handshakeType.rawValue)
-        bytes.append(contentsOf: UInt(bodyLength).bytes[1...3])
-        bytes.append(contentsOf: preMasterSecret.preLength.bytes)
-        bytes.append(contentsOf: preMasterSecret.encryptedPreMaster)
+        if let preMaster = preMasterSecret {
+            bytes.append(contentsOf: UInt(preMaster.encryptedPreMaster.count + 2).bytes[1...3])
+            bytes.append(contentsOf: UInt16(preMaster.encryptedPreMaster.count).bytes)
+            bytes.append(contentsOf: preMaster.encryptedPreMaster)
+        } else if let ecdhp = ecdhParams {
+            bytes.append(contentsOf: UInt(ecdhp.pubKey.count + 1).bytes[1...3])
+            bytes.append(UInt8(ecdhp.pubKey.count))
+            bytes.append(contentsOf: ecdhp.pubKey)
+        }
         return bytes
     }
 }

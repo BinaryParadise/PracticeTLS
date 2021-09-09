@@ -8,22 +8,39 @@
 import Foundation
 
 public class TLSMessage: Streamable {
-    var type: TLSMessageType = .handeshake
-    var version: TLSVersion = TLSVersion.V1_2
-    var rawData: [UInt8]?
+    var type: TLSMessageType = .handshake(.clientHello)
+    
+    /// 默认版本TLS 1.2
+    var version: TLSVersion = .V1_2
+    var rawData: [UInt8] = []
 
     /// 握手协议内容长度（不包括协议头）
     var contentLength: UInt16 = 0
     
-    init() {
-        
+    init(_ type : TLSMessageType) {
+        self.type = type
     }
     
-    required init?(stream: DataStream) {
+    public init?(stream: DataStream, context: TLSConnection) {
+        type = TLSMessageType(rawValue: stream.readByte()!)
+        version = TLSVersion(rawValue: stream.readUInt16()!)
+        stream.readUInt16()
         rawData = stream.data
-        type = TLSMessageType(rawValue: stream.readByte() ?? 0) ?? .handeshake
-        version = TLSVersion(rawValue: stream.readUInt16() ?? 0x303)
-        contentLength = stream.readUInt16() ?? 0
+    }
+    
+    public class func fromData(data: [UInt8], context: TLSConnection) -> TLSMessage? {
+        let stream = data.stream
+        let type = TLSMessageType(rawValue: stream.readByte(cursor: false) ?? 0)
+        switch type {
+        case .changeCipherSpec:
+            return TLSChangeCipherSpec(stream: stream, context: context)
+        case .alert:
+            return TLSAlert(stream: stream, context: context)
+        case .handshake(_):
+            return TLSHandshakeMessage.handshakeMessageFromData(data: data, context: context)
+        case .applicationData:
+            return TLSApplicationData(stream: stream, context: context)
+        }
     }
     
     func dataWithBytes() -> [UInt8] {
@@ -31,7 +48,7 @@ public class TLSMessage: Streamable {
     }
     
     func messageData() -> [UInt8] {
-        if let rawData = rawData {
+        if rawData.count > 0 {
             return [UInt8](rawData[5...])
         }
         return [UInt8](dataWithBytes()[5...])

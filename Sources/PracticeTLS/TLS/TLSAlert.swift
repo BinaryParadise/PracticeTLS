@@ -15,15 +15,15 @@ class TLSAlert: TLSMessage {
         self.level = alertLevel
         self.alertType = alert
         
-        super.init()
+        super.init(.alert)
         type = .alert
     }
     
-    required init?(stream: DataStream) {
-        stream.position = 5
-        level = TLSAlertLevel(rawValue: stream.readByte()!) ?? .warning
-        alertType = TLSAlertType(rawValue: stream.readByte()!) ?? .unexpectedMessage
-        super.init(stream: stream)
+    override init?(stream: DataStream, context: TLSConnection) {
+        stream.read(count: 5)
+        level = TLSAlertLevel(rawValue: stream.readByte() ?? 0) ?? .warning
+        alertType = TLSAlertType(rawValue: stream.readByte() ?? 0) ?? .accessDenied
+        super.init(.alert)
     }
     
     override func dataWithBytes() -> [UInt8] {
@@ -42,6 +42,7 @@ enum TLSAlertLevel : UInt8
 
 enum TLSAlertType : UInt8
 {
+    case unknown = 255
     case closeNotify = 0
     case unexpectedMessage = 10
     case badRecordMAC = 20
