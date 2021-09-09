@@ -146,7 +146,7 @@ public class RSAEncryptor: NSObject {
     
     /// 使用私钥字符串解密 13
     public func decryptData(data: [UInt8], privKey:String = kRSAPrivateKey) throws -> [UInt8] {
-        let keyRef = getPublicSecKey()!
+        let keyRef = getPrivateSecKey()!
         return self.decryptData(data: data, keyRef: keyRef)// 16
     }
     
@@ -191,7 +191,7 @@ public class RSAEncryptor: NSObject {
         var error: Unmanaged<CFError>?
         let ret = SecKeyVerifySignature(pubSecKey, algorithm, Data(signed) as CFData, Data(signature) as CFData, &error)
         if !ret {
-            //print("\(error?.takeRetainedValue())")
+            print("\(error?.takeRetainedValue())")
         }
         return ret
     }

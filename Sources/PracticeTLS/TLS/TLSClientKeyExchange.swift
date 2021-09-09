@@ -37,16 +37,19 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
         }
     }
     
-    required init?(stream: DataStream) {
+    required public override init?(stream: DataStream, context: TLSConnection) {
         stream.position = 5
         let _handshakeType = TLSHandshakeType(rawValue: stream.readByte()!)!
         bodyLength = stream.readUInt24()!
-        //TODO: context
-        preMasterSecret = EncryptedPreMasterSecret(stream)
-        if preMasterSecret == nil {
+        switch context.keyExchange {
+        case .rsa:
+            preMasterSecret = EncryptedPreMasterSecret(stream)
+        case .dhe:
+            break
+        case .ecdhe:
             ecdhParams = ECDHServerParams(stream: stream)
         }
-        super.init(stream: stream)
+        super.init(.clientKeyExchange)
         handshakeType = _handshakeType
     }
     

@@ -11,12 +11,7 @@ class TLSFinished: TLSHandshakeMessage {
     var verifyData: [UInt8]
     init(_ verifyData: [UInt8]) {
         self.verifyData = verifyData
-        super.init()
-        handshakeType = .finished
-    }
-    
-    required init(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
+        super.init(.finished)
     }
     
     override func dataWithBytes() -> [UInt8] {

@@ -9,11 +9,37 @@ import Foundation
 
 public class TLSHandshakeMessage: TLSMessage {
     var handshakeType: TLSHandshakeType = .clientHello
+    var clientVersion: TLSVersion = .V1_2
     var nextMessage: TLSHandshakeMessage?
-
-    public override class func fromData(data: [UInt8]) -> TLSMessage? {
+    var encrypted: [UInt8] = []
+    
+    init(_ type: TLSHandshakeType = .clientHello) {
+        self.handshakeType = type
+        super.init(.handeshake)
+    }
+    
+    public override init?(stream: DataStream, context: TLSConnection) {
+        super.init(stream: stream, context: context)
+        handshakeType = TLSHandshakeType(rawValue: stream.readByte() ?? UInt8.max) ?? .clientHello
+        stream.readUInt24()
+        clientVersion = TLSVersion(rawValue: stream.readUInt16() ?? 0)
+    }
+    
+    override func dataWithBytes() -> [UInt8] {
+        var bytes: [UInt8] = []
+        bytes.append(type.rawValue)
+        bytes.append(contentsOf: version.rawValue.bytes)
+        bytes.append(contentsOf: UInt16(encrypted.count).bytes)
+        
+        bytes.append(contentsOf: encrypted)
+        return bytes
+    }
+    
+    class func handshakeMessageFromData(data: [UInt8], context: TLSConnection) -> TLSMessage? {
         guard let header = readHeader(stream: data.stream) else {
-            return TLSEncryptedMessage(stream: data.stream)
+            var msg = TLSHandshakeMessage(stream: data.stream, context: context)
+            msg?.handshakeType = .finished
+            return msg
         }
         
         var message: TLSHandshakeMessage?
@@ -21,7 +47,7 @@ public class TLSHandshakeMessage: TLSMessage {
         case .helloRequest, .helloRetryRequest:
             break
         case .clientHello:
-            message = TLSClientHello(stream: data.stream)
+            message = TLSClientHello(stream: data.stream, context: context)
         case .serverHello:
             break
         case .certificate:
@@ -35,7 +61,7 @@ public class TLSHandshakeMessage: TLSMessage {
         case .certificateVerify:
             break
         case .clientKeyExchange:
-            message = TLSClientKeyExchange(stream: data.stream)
+            message = TLSClientKeyExchange(stream: data.stream, context: context)
         case .finished:
             break
         }

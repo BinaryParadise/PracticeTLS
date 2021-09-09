@@ -8,11 +8,7 @@
 import Foundation
 
 public class TLSClientHello: TLSHandshakeMessage {
-    
-    /// 握手数据长度（不包括握手协议头：类型、长度）
-    var bodyLength: Int = 0
-    var clientVersion: TLSVersion
-    var random: Random
+    var random: Random = Random()
     var sessionID: [UInt8]?
     var cipherSuites: [CipherSuite] = []
     var compressionMethod: CompressionMethod = .null
@@ -21,11 +17,8 @@ public class TLSClientHello: TLSHandshakeMessage {
         return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: .secp256r1)?.keyExchange ?? []
     }
 
-    required init?(stream: DataStream) {
-        stream.position = 5
-        let _handshakeType = TLSHandshakeType(rawValue: stream.readByte()!)!
-        bodyLength = stream.readUInt24() ?? 0
-        clientVersion = TLSVersion(rawValue: stream.readUInt16() ?? 0)
+    public override init?(stream: DataStream, context: TLSConnection) {
+        super.init(stream: stream, context: context)
         random = Random(stream: (stream.read(count: 32) ?? []).stream)
         if let len = stream.readByte(), len > 0 {
             sessionID = stream.read(count: Int(len))
@@ -52,8 +45,6 @@ public class TLSClientHello: TLSHandshakeMessage {
         if let extLen = stream.readUInt16(), let bytes = stream.read(count: Int(extLen)) {
             extensions = TLSExtensionsfromData(bytes)
         }
-        super.init(stream: DataStream(stream.data))
-        handshakeType = _handshakeType
         
         if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) != nil {
             if keyExchange.count == 0 {

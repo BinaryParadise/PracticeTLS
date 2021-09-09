@@ -20,7 +20,7 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
             0xCF, 0x21, 0xAD, 0x74, 0xE5, 0x9A, 0x61, 0x11, 0xBE, 0x1D, 0x8C, 0x02, 0x1E, 0x65, 0xB8, 0x91,
             0xC2, 0xA2, 0x11, 0x16, 0x7A, 0xBB, 0x8C, 0x5E, 0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C
         ]
-        super.init()
+        super.init(.helloRetryRequest)
 
         handshakeType = .serverHello
         sessionID = client.sessionID
@@ -29,8 +29,8 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
         extensions.append(TLSKeyShareExtension(keyShare: .helloRetryRequest(NamedGroup.secp256r1)))
     }
     
-    required init?(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
+    public override init?(stream: DataStream, context: TLSConnection) {
+        fatalError("init(stream:context:) has not been implemented")
     }
     
     override func dataWithBytes() -> [UInt8] {

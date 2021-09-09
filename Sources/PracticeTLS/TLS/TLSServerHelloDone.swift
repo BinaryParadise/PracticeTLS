@@ -8,16 +8,8 @@
 import Foundation
 
 class TLSServerHelloDone: TLSHandshakeMessage {
-    var bodyLength: Int = 0
-    override init() {
-        super.init()
-        
-        contentLength = 4
-        handshakeType = .serverHelloDone
-    }
-    
-    required init(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
+    override init(_ type: TLSHandshakeType = .clientHello) {
+        super.init(.serverHelloDone)
     }
     
     override func dataWithBytes() -> [UInt8] {
@@ -25,13 +17,11 @@ class TLSServerHelloDone: TLSHandshakeMessage {
         //header
         bytes.append(type.rawValue) // 1 byte
         bytes.append(contentsOf: version.rawValue.bytes) // 2 bytes
-        bytes.append(contentsOf: UInt16(contentLength).bytes) // 2 bytes
-        
-        //bytes.append(contentsOf: TLSServerKeyExchange().dataWithBytes())
-        
+        bytes.append(contentsOf: UInt16(4).bytes) // 2 bytes
+                
         //body
         bytes.append(handshakeType.rawValue) // 1 byte
-        bytes.append(contentsOf: UInt(bodyLength).bytes[1..<4]) //3 bytes
+        bytes.append(contentsOf: UInt(0).bytes[1..<4]) //3 bytes
         return bytes
     }
 }

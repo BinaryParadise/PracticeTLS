@@ -8,7 +8,6 @@
 import Foundation
 
 protocol Streamable {
-    init?(stream: DataStream)
     func dataWithBytes() -> [UInt8]
 }
 
@@ -86,7 +85,7 @@ public class DataStream {
     }
     
     /// 读取三个字节
-    public func readUInt24() -> Int? {
+    @discardableResult public func readUInt24() -> Int? {
         if let bytes = read(count: 3) {
             return Int(bytes[0]) << 16 + Int(bytes[1]) << 8 + Int(bytes[2])
         }

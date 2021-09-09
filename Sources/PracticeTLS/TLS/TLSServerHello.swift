@@ -12,7 +12,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     var random: Random = Random()
     var sessionID: [UInt8] = []
     /// 必须选择客户端支持的加密套件，此处仅实现一两种
-    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA
+    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = [] //[.init(type: .renegotiation_info, length: 1, ext: [0])]
     var extensionLength: UInt16 {
@@ -61,7 +61,7 @@ public class TLSServerHello: TLSHandshakeMessage {
                         
             cipherSuite = .TLS_AES_128_GCM_SHA256
         } else {
-            let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            let expectedCipher: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
             if client.cipherSuites.contains(expectedCipher) {
                 cipherSuite = expectedCipher
             }
@@ -79,10 +79,6 @@ public class TLSServerHello: TLSHandshakeMessage {
                 cert.nextMessage = try? TLSServerKeyExchange(cipherSuite, pubKey: pubKey, serverHello: self)
             }
         }
-    }
-    
-    required init?(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
     }
     
     func extend(_ type: TLSExtensionType) -> TLSExtension? {

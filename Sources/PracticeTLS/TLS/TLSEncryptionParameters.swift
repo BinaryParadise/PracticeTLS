@@ -76,10 +76,10 @@ public class TLSSecurityParameters
     
     func transformParamters() {
         if let ecdh = ecdh {
-            masterSecret = masterSecret(ecdh.shared1, seed: clientRandom+serverRandom)
-        } else {
-            masterSecret = masterSecret(preMasterSecret, seed: clientRandom+serverRandom)
+            ecdh.exchange(preMasterSecret)
+            preMasterSecret = ecdh.shared1
         }
+        masterSecret = masterSecret(preMasterSecret, seed: clientRandom+serverRandom)
         let hmacSize = cipherType == .aead ? 0 : hmac.size
         let numberOfKeyMaterialBytes = 2 * (hmacSize + encodeKeyLength + fixedIVLength)
         let keyBlock = PRF(secret: masterSecret, label: TLSKeyExpansionLabel, seed: serverRandom + clientRandom, outputLength: numberOfKeyMaterialBytes)

@@ -60,7 +60,7 @@ class TLSServerKeyExchange: TLSHandshakeMessage {
         //踩坑：想当然的以为只有pubkey需要签名⚠️⚠️⚠️
         let plantData = serverHello.client!.random.dataWithBytes()+serverHello.random.dataWithBytes()+params.parametersData()
         signedData = try TLSSignedData(hashAlgorithm: .sha256, signatureAlgorithm: .rsa, signature: RSAEncryptor().sign(data: plantData))
-        super.init()
+        super.init(.serverKeyExchange)
         handshakeType = .serverKeyExchange
         nextMessage = TLSServerHelloDone()
     }

@@ -17,14 +17,9 @@ public class TLSCertificate: TLSHandshakeMessage {
     var certData: Data = Data()
     var bodyLength: Int = 0
     var certsLength: Int = 0
-    override init() {
-        super.init()
-        
-        handshakeType = .certificate
-    }
     
-    required init(stream: DataStream) {
-        fatalError("init(stream:) has not been implemented")
+    override init(_ type: TLSHandshakeType = .clientHello) {
+        super.init(.certificate)
     }
     
     override func dataWithBytes() -> [UInt8] {

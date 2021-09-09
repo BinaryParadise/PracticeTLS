@@ -7,25 +7,23 @@
 
 import Foundation
 
-class TLSChangeCipherSpec: TLSHandshakeMessage {
+class TLSChangeCipherSpec: TLSMessage {
     var isClient: Bool = false
-    override init() {
-        super.init()
-        type = .changeCipherSpec
-        version = .V1_2
-        contentLength = 1
+    
+    override init(_ type: TLSMessageType = .handeshake) {
+        super.init(.changeCipherSpec)
     }
     
-    required init?(stream: DataStream) {
+    override init?(stream: DataStream, context: TLSConnection) {        
         isClient = true
-        super.init(stream: stream)
+        super.init(.changeCipherSpec)
     }
     
     override func dataWithBytes() -> [UInt8] {
         var data: [UInt8] = []
         data.append(type.rawValue)
         data.append(contentsOf: version.rawValue.bytes)
-        data.append(contentsOf: contentLength.bytes)
+        data.append(contentsOf: UInt16(1).bytes)
         data.append(0x01)
         return data
     }
