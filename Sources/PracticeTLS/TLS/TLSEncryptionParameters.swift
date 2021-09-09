@@ -35,9 +35,7 @@ public class TLSSecurityParameters
     public var isVerifyed: Bool {
         return clientVerifyData == serverVerifyData && clientVerifyData.count > 0
     }
-    
-    var ecdh: ECDHEncryptor?
-    
+        
     public var description: String {
         return """
             let preMasterSecret:[UInt8] = [\(preMasterSecret.toHexArray())]
@@ -69,16 +67,7 @@ public class TLSSecurityParameters
         hmac                = cipherSuiteDescriptor.hashAlgorithm.macAlgorithm
     }
     
-    func setupExchange() -> [UInt8]? {
-        ecdh = ECDHEncryptor()
-        return ecdh?.exportPublickKey()
-    }
-    
     func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8]) {
-        if algorithm == .ecdhe {
-            ecdh?.exchange(preMasterSecret)
-            self.preMasterSecret = ecdh?.shared1 ?? []
-        }
         masterSecret = masterSecret(preMasterSecret, seed: clientRandom+serverRandom)
         let hmacSize = cipherType == .aead ? 0 : hmac.size
         let numberOfKeyMaterialBytes = 2 * (hmacSize + encodeKeyLength + fixedIVLength)

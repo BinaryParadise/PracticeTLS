@@ -24,25 +24,22 @@ public class TLSServerHello: TLSHandshakeMessage {
     var supportVersion: TLSVersion?
     var client: TLSClientHello?
 
-    init(client: TLSClientHello) {
+    init(client: TLSClientHello, context: TLSConnection) {
         super.init(.serverHello)
         self.client = client
-        
-        keyExchange()
-    
+            
         sessionID = client.sessionID ?? []
-        //启用h2
+        
+        contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength
+        bodyLength = Int(contentLength - 4)
+        
+        //启用: h2
         #if false
+        context.isHTTP2Enabled = true
         extensions = [.init(type: .application_layer_protocol_negotiation, length: 5, ext: [0x00, 0x03, 0x02, 0x68, 0x32])]
         extLen = 9
         #endif
-        contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength
-        bodyLength = Int(contentLength - 4)
-    }
-    
-    func keyExchange(keyExchange: [UInt8] = []) {
-        guard let client = client else { return }
-        extensions.removeAll()
+        
         //选定TLS版本
         if let suppertedVersions = client.extensions.first(where: { ext in
             ext is TLSSupportedVersionsExtension
@@ -54,21 +51,38 @@ public class TLSServerHello: TLSHandshakeMessage {
         
         //选定加密套件
         if supportVersion == .V1_3 {
+            //TODO:pubKey
             extensions.append(TLSSupportedVersionsExtension())
-            extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: .secp256r1, keyExchange:keyExchange))))
+            extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: .secp256r1, keyExchange:[]))))
                         
             cipherSuite = .TLS_AES_128_GCM_SHA256
         } else {
-            let expectedCipher: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
+            let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
             if client.cipherSuites.contains(expectedCipher) {
                 cipherSuite = expectedCipher
             }
         }
         
+        context.setPendingSecurityParametersForCipherSuite(cipherSuite)
+        context.securityParameters.serverRandom = random.dataWithBytes()
+        version = context.version
+        
         let cert = TLSCertificate()
         cert.version = version
-        cert.nextMessage = TLSServerHelloDone()
         nextMessage = cert
+        
+        switch context.keyExchange {
+        case .rsa:
+            cert.nextMessage = TLSServerHelloDone()
+        case .ecdha(let encryptor):
+            serverKeyExchange(encryptor.exportPublickKey())
+        }
+        context.handshakeMessages.append(self)
+        context.handshakeMessages.append(cert)
+        context.handshakeMessages.append(cert.nextMessage!)
+        if let nxt = cert.nextMessage?.nextMessage {
+            context.handshakeMessages.append(nxt)
+        }
     }
     
     func serverKeyExchange(_ pubKey: [UInt8]) {

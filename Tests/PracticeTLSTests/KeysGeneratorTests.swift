@@ -14,7 +14,7 @@ import CryptoSwift
 
 class KeysGeneratorTests: XCTestCase {
     
-    func testFinishedMessage() throws {
+    func testFinishedMessageRSA() throws {
         let preMasterSecret: [UInt8] = "0303AD847A00DE47DB7335C5EFED856C79423C59A3377C527616AF80E582A2F0C9BBE3D15B8650B2E91F2E09EE732BEA".uint8Array
         let clientRandom: [UInt8] = "E2BFE47D78199242E10CDB5B3F0D1FD072232626CDE9E766DA5D189023CDAC4F".uint8Array
         let serverRandom: [UInt8] = "26E9F2D927F7481234B430596EB3270898657D81B3092B2DEEDC22A1C82D56F4".uint8Array

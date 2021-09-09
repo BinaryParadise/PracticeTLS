@@ -13,26 +13,36 @@ import SecurityRSA
 import CommonCrypto
 @testable import PracticeTLS
 
-class ECDHETests: XCTestCase {    
+class ECDHETests: XCTestCase {
     
-    func testECDHE() throws {
-        let pubKey: [UInt8] = [0x04, 0x56, 0x2b, 0xfe, 0xed, 0x8a, 0x7e, 0xe1, 0x23, 0xd2, 0x5f, 0xc4, 0xec, 0x4c, 0xe8, 0x68,
-                               0x9a, 0xc4, 0x9f, 0x73, 0x2c, 0x14, 0xbe, 0x7a, 0xac, 0xd3, 0x90, 0xb9, 0x70, 0xb6, 0x3a, 0x56,
-                               0x35, 0x0a, 0x87, 0x72, 0x8f, 0x30, 0x0f, 0x0b, 0x2b, 0xcf, 0x86, 0xb2, 0x57, 0xdc, 0x6a, 0x30,
-                               0x9f, 0x31, 0xf3, 0x4e, 0x0c, 0xa1, 0xf6, 0x5b, 0xc2, 0xbe, 0x02, 0x64, 0x62, 0x2c, 0xd1, 0xa2,
-                               0xf1]
-        let ecdh = ECDHEncryptor()
-        ecdh.exchange(pubKey)
-        let plantData: [UInt8] = ecdh.shared1
-        let encrypted = ecdh.encrypt(ecdh.shared1)
-        let decrypted = ecdh.decrypt(encrypted ?? [])
-        XCTAssert(plantData.count > 0)
-        XCTAssertEqual(plantData, decrypted)
+    func testECDHEEncrypt() throws {
+        let priKey: [UInt8] = "04C473372B66CC92DAE2DDED25A08EEB7541934B893B8A6D975865275D7895E558016E12D7456BCFEAEDD7ECC576AC1AF41BF05E425A7312B3DFEF92B978E8145796AFA3D66644E05B4AC1557C854D8BCB9C36BEDA964CDE66DC52702574553789".uint8Array
+        let pubKey: [UInt8] = "04C473372B66CC92DAE2DDED25A08EEB7541934B893B8A6D975865275D7895E558016E12D7456BCFEAEDD7ECC576AC1AF41BF05E425A7312B3DFEF92B978E81457".uint8Array
+        let clientPubKey: [UInt8] = "041A4AA3FAD88F8A832C34A52838D275025F7ACE70F3C9A2DB1EA006393A2F3BA1675EE4220B595A0E0CE0DBF5D97FE1B0BB7CCB280FE66383DD9F8D1A30E50A09".uint8Array
+        let preMasterSecret: [UInt8] = "0AACE994DD77450FF7B0D240E542DCD736173575077A960D2016A02F0ADD6C37".uint8Array
+        let clientRandom: [UInt8] = "9951A5AD1D8461813ABA4458AFE936CC299AB2A6FE998B3CA08C5A28E040DB80".uint8Array
+        let serverRandom: [UInt8] = "26E9FF2A03CFFD4E50D487011DF21E26677CF8439E701A3CAC7C554BB7DA86C2".uint8Array
+        let masterSecret: [UInt8] = "794FBE34E50C515664D4DB279663028F6CE11692D9F8EB64A803F77835F20711611BC910D3A7120EDC03099FB644A4D4".uint8Array
+        
+        let ecdh = try ECDHEncryptor(priKey)
+        
+        XCTAssertEqual(pubKey, ecdh.exportPublickKey())
+        
+        let shared = try ecdh.keyExchange(clientPubKey)
+        XCTAssertEqual(shared, preMasterSecret)
+        
+        let s = TLSSecurityParameters(.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+        s.clientRandom = clientRandom
+        s.serverRandom = serverRandom
+        s.keyExchange(algorithm: .ecdhe, preMasterSecret: shared)
+        
+        XCTAssertEqual(masterSecret, s.masterSecret)
+        
     }
     
     func testECDH_RSA() throws {
         
-        let rsa = RSAEncryptor()
+        let rsa = try RSAEncryptor()
         let clientRandom = "08baba916f7f01ffaa86d1a227125a7cac8925a2668ceaf84aba95609d419154".uint8Array
         let serverRandom = "26e86c58b27eb49ab5bfd4bb17e54d2cfb161d03b7376b099d264a399825e454".uint8Array
         let param: [UInt8] = [0x03,0x00,0x17,0x41,0x04,0xb5,0xa7,0x58,0xee,0x66,0xee,0xc5,0xf2,0x64,0x17,0x40,

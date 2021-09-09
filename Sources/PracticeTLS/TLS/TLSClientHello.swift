@@ -53,7 +53,10 @@ public class TLSClientHello: TLSHandshakeMessage {
                 return
             }
         }
-        nextMessage = TLSServerHello(client: self)
+        //踩坑：这里要完整的，而不是28字节⚠️⚠️⚠️⚠️⚠️
+        context.securityParameters.clientRandom = random.dataWithBytes()
+        context.handshakeMessages.append(self)
+        nextMessage = TLSServerHello(client: self, context: context)
     }
     
     func extend(_ type: TLSExtensionType) -> TLSExtension? {

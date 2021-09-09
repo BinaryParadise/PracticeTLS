@@ -34,7 +34,7 @@ public class TLSConnection: NSObject {
     public var lastPacket: Bool = true
     public var handshaked: Bool = false
     var isTLS1_3Enabled: Bool = false
-    var keyExchange: KeyExchangeAlgorithm = .rsa
+    var keyExchange: TLSKeyExchange = .rsa
     
     init(_ sock: GCDAsyncSocket) {
         self.sock = sock
@@ -56,6 +56,7 @@ public class TLSConnection: NSObject {
         }
         let cipherAlgorithm = cipherSuiteDescriptor.bulkCipherAlgorithm
         
+        self.cipherSuite = cipherSuite        
         let s = securityParameters
         s.bulkCipherAlgorithm = cipherAlgorithm
         s.blockCipherMode     = cipherSuiteDescriptor.blockCipherMode
@@ -66,8 +67,11 @@ public class TLSConnection: NSObject {
         s.recordIVLength      = cipherSuiteDescriptor.recordIVLength
         s.hmac                = cipherSuiteDescriptor.hashAlgorithm.macAlgorithm
         s.preMasterSecret = preMasterKey
-        keyExchange = cipherSuiteDescriptor.keyExchangeAlgorithm
-        s.keyExchange(algorithm: keyExchange, preMasterSecret: preMasterKey)
+        do {
+            keyExchange = try cipherSuiteDescriptor.keyExchangeAlgorithm == .rsa ? .rsa : .ecdha(.init())
+        } catch {
+            LogError("\(error)")
+        }
     }
     
     func verifyDataForFinishedMessage(isClient: Bool) -> TLSFinished {
@@ -110,17 +114,6 @@ public class TLSConnection: NSObject {
         case .handshake(_):
             if let handshake = msg as? TLSHandshakeMessage {
                 switch handshake.handshakeType {
-                case .clientHello:
-                    let clientHello = handshake as! TLSClientHello
-                    //PS：TMD这里要完整的，而不是28字节⚠️⚠️⚠️⚠️⚠️
-                    securityParameters.clientRandom = clientHello.random.dataWithBytes()
-                    handshakeMessages.append(clientHello)
-                    sendHandshake(handshake.nextMessage)
-                case .clientKeyExchange:
-                    let exchange = msg as! TLSClientKeyExchange
-                    preMasterKey = exchange.preMasterKey
-                    setPendingSecurityParametersForCipherSuite(cipherSuite)
-                    handshakeMessages.append(handshake)
                 case .finished:
                     securityParameters.clientVerifyData = try decryptAndVerifyMAC(contentType: handshake.type, data: handshake.messageData()) ?? []
                     //print("let cipherData:[UInt8] = [\(em.message.toHexArray())]")
@@ -132,7 +125,8 @@ public class TLSConnection: NSObject {
                     handshakeMessages.append(clientFinishedMsg)
                     securityParameters.read?.sequenceNumber += 1
                     sock.writeData(data: TLSChangeCipherSpec().dataWithBytes(), tag: .changeCipherSpec)
-                default: break
+                default:
+                    sendHandshake(handshake.nextMessage)
                 }
             }
         case .alert:
@@ -180,41 +174,7 @@ public class TLSConnection: NSObject {
     func sendHandshake(_ msg: TLSHandshakeMessage?) -> Void {
         guard let msg = msg else { return }
         nextMessage = msg.nextMessage
-        switch msg.handshakeType {
-        case .helloRetryRequest:
-            //TODO:要还是不要？
-            handshakeMessages.append(msg)
-            sock.writeData(data: msg.dataWithBytes(), tag: .handshake(.helloRetryRequest))
-        case .serverHello:
-            let serverHello = msg as! TLSServerHello
-            securityParameters.serverRandom = serverHello.random.dataWithBytes()
-            cipherSuite = serverHello.cipherSuite
-            serverHello.version = version
-            http2Enabled = serverHello.extend(.application_layer_protocol_negotiation) != nil
-            
-            handshakeMessages.append(msg)
-            
-            isTLS1_3Enabled = serverHello.extend(.supported_versions) != nil
-            keyExchange = TLSCipherSuiteDescriptionDictionary[cipherSuite]!.keyExchangeAlgorithm
-            if isTLS1_3Enabled {
-                securityParameters.preMasterSecret = serverHello.client!.keyExchange
-                if let exchange = securityParameters.setupExchange() {
-                    serverHello.keyExchange(keyExchange: exchange)
-                    setPendingSecurityParametersForCipherSuite(cipherSuite)
-                }
-            } else {
-                if keyExchange == .ecdhe {
-                    if let exchange = securityParameters.setupExchange() {
-                        serverHello.serverKeyExchange(exchange)
-                    }
-                }
-            }
-            
-            sock.writeData(data: serverHello.dataWithBytes(), tag: .handshake(msg.handshakeType))
-        default:
-            handshakeMessages.append(msg)
-            sock.writeData(data: msg.dataWithBytes(), tag: .handshake(msg.handshakeType))
-        }
+        sock.writeData(data: msg.dataWithBytes(), tag: .handshake(msg.handshakeType))        
     }
     
     func sendMessage(msg: TLSMessage) {

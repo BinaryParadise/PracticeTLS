@@ -188,6 +188,11 @@ enum KeyShare {
     case serverHello(KeyShareEntry)
 }
 
+enum TLSKeyExchange {
+    case rsa
+    case ecdha(ECDHEncryptor)
+}
+
 struct TLSKeyShareExtension: Streamable, TLSExtension {
     
     init?(stream: DataStream) {

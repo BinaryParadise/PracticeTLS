@@ -81,10 +81,4 @@ class TLSServerKeyExchange: TLSHandshakeMessage {
         b.append(contentsOf: signedData.bytes)
         return b
     }
-    
-    override func messageData() -> [UInt8] {
-        var bytes:[UInt8] = []
-        bytes.append(handshakeType.rawValue)
-        return bytes
-    }
 }
