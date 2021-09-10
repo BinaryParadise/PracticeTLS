@@ -57,7 +57,7 @@ public class TLSServerHello: TLSHandshakeMessage {
                         
             cipherSuite = .TLS_AES_128_GCM_SHA256
         } else {
-            let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            let expectedCipher: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
             if client.cipherSuites.contains(expectedCipher) {
                 cipherSuite = expectedCipher
             }

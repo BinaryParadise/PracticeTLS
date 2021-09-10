@@ -90,6 +90,7 @@ public struct TLSVersion: Comparable, RawRepresentable, CustomStringConvertible 
 }
 
 public enum TLSHandshakeType: UInt8 {
+    // TLS 1.2
     case helloRequest          = 0
     case clientHello           = 1
     case serverHello           = 2

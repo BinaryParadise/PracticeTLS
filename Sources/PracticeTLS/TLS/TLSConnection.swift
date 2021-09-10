@@ -79,7 +79,7 @@ public class TLSConnection: NSObject {
         var handshakeData: [UInt8] = []
         for msg in handshakeMessages {
             let d = msg.messageData()
-            print("//\(msg.type) => \(d.count) \(d.toHexString())")
+            //print("//\(msg.type) => \(d.count) \(d.toHexString())")
             handshakeData.append(contentsOf: d)
         }
         let transcriptHash = securityParameters.hashAlgorithm.hashFunction(handshakeData.dropLast(0))

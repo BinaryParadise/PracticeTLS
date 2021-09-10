@@ -34,6 +34,7 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
         case .rsa:
             preMasterSecret = EncryptedPreMasterSecret(stream)
             context.preMasterKey = preMasterSecret!.preMasterKey
+            context.securityParameters.keyExchange(algorithm: .rsa, preMasterSecret: context.preMasterKey)
         case .ecdha(let encryptor):
             ecdhParams = ECDHServerParams(stream: stream)
             context.preMasterKey = ecdhParams!.pubKey

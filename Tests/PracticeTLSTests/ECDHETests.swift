@@ -11,6 +11,7 @@ import Foundation
 import CryptoSwift
 import SecurityRSA
 import CommonCrypto
+import CryptoKit
 @testable import PracticeTLS
 
 class ECDHETests: XCTestCase {
@@ -40,8 +41,7 @@ class ECDHETests: XCTestCase {
         
     }
     
-    func testECDH_RSA() throws {
-        
+    func testECDH_RSA_Sign() throws {
         let rsa = try RSAEncryptor()
         let clientRandom = "08baba916f7f01ffaa86d1a227125a7cac8925a2668ceaf84aba95609d419154".uint8Array
         let serverRandom = "26e86c58b27eb49ab5bfd4bb17e54d2cfb161d03b7376b099d264a399825e454".uint8Array
@@ -58,4 +58,38 @@ class ECDHETests: XCTestCase {
         XCTAssert(verfiy)
     }
     
+    func testECDH_Curve() throws {
+        let attributes = [
+            kSecAttrKeySizeInBits: 256,
+            SecKeyKeyExchangeParameter.requestedSize.rawValue: 32,
+            kSecAttrKeyType: kSecAttrKeyTypeEC,
+            kSecPrivateKeyAttrs: [kSecAttrIsPermanent: false]] as CFDictionary
+                        
+        
+        let types = [kSecAttrKeyTypeECSECPrimeRandom]
+        try types.forEach { t in
+            let attributes = [
+                kSecAttrKeySizeInBits: 256,
+                SecKeyKeyExchangeParameter.requestedSize.rawValue: 32,
+                kSecAttrKeyType: t,
+                kSecPrivateKeyAttrs: [kSecAttrIsPermanent: false]] as CFDictionary
+            var error: Unmanaged<CFError>?
+            
+            let pk = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: Data("04eb7c42bf8317508adc0e2f26902c64636cdeb570695d830cab6086c6f34f39".uint8Array))
+
+            
+            print("\(t) \(pk) \(error)")
+                        
+            if let privateKey = SecKeyCreateRandomKey(attributes, &error) {
+                let pubKey = SecKeyCopyExternalRepresentation(SecKeyCopyPublicKey(privateKey)!, &error)
+                let prk = Curve25519.KeyAgreement.PrivateKey()
+                print("\(prk)")
+                let publicKey = SecKeyCreateWithData(pubKey!, [kSecAttrType: t,
+                                                        kSecReturnPersistentRef: true,
+                                                        kSecAttrKeyClass: kSecAttrKeyClassPublic] as CFDictionary, &error)
+                print("\(t as String) => \(publicKey) \(error)")
+            }
+        }
+        XCTFail()
+    }
 }
