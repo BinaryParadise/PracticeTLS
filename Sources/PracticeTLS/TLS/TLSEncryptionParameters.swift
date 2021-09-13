@@ -35,6 +35,8 @@ public class TLSSecurityParameters
     public var isVerifyed: Bool {
         return clientVerifyData == serverVerifyData && clientVerifyData.count > 0
     }
+    
+    let handshakeState = TLS1_3.HandshakeState()
         
     public var description: String {
         return """

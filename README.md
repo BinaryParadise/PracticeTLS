@@ -46,6 +46,7 @@ swift package init
 [TLS1.2 PreMasterSecret And MasterSecret](https://laoqingcai.com/tls1.2-premasterkey/)
 
 [图解 ECDHE 密钥交换算法](https://www.cnblogs.com/xiaolincoding/p/14318338.html)
+[TLS 1.3 Handshake Protocol](https://github.com/halfrost/Halfrost-Field/blob/master/contents/Protocol/TLS_1.3_Handshake_Protocol.md)
 
 ## 扩展
 

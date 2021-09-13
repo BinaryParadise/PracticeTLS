@@ -42,7 +42,6 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
                 context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: preMasterSecret)
             }
         }
-        context.handshakeMessages.append(self)
     }
     
     override func messageData() -> [UInt8] {

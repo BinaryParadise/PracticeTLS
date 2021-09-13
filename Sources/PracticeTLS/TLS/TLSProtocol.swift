@@ -104,6 +104,7 @@ public enum TLSHandshakeType: UInt8 {
     
     // TLS 1.3
     case helloRetryRequest  = 6
+    case encryptedExtensions = 8
 }
 
 enum TLSExtensionType: UInt16 {
@@ -118,7 +119,17 @@ protocol TLSExtension: Streamable {
     var type: TLSExtensionType { get set }
 }
 
-func TLSExtensionsfromData(_ data: [UInt8]) -> [TLSExtension] {
+enum TLSMessageExtensionType {
+    case clientHello
+    case helloRetryRequest
+    case serverHello
+    case encryptedExtensions
+    case certificate
+    case certificateRequest
+    case newSessionTicket
+}
+
+func TLSExtensionsfromData(_ data: [UInt8], messageType: TLSMessageExtensionType) -> [TLSExtension] {
     let stream = data.stream
     var exts: [TLSExtension] = []
     
@@ -134,14 +145,13 @@ func TLSExtensionsfromData(_ data: [UInt8]) -> [TLSExtension] {
             if let type = TLSExtensionType(rawValue: b) {
                 switch type {
                 case .supported_versions:
-                    exts.append(TLSSupportedVersionsExtension(stream: stream)!)
-                case .key_share:
+                    let vers = TLSSupportedVersionsExtension(stream: stream)!
                     //启用TLS 1.3
                     #if true
-                    exts.append(TLSKeyShareExtension(stream: stream, handshake: .clientHello)!)
-                    #else
-                    ignoreExtension()
+                    exts.append(vers)
                     #endif
+                case .key_share:
+                    exts.append(TLSKeyShareExtension(stream: stream, messageType: messageType)!)
                 default:
                     ignoreExtension()
                 }
@@ -207,11 +217,11 @@ struct TLSKeyShareExtension: Streamable, TLSExtension {
         self.keyShare = keyShare
     }
     
-    init?(stream: DataStream, handshake: TLSHandshakeType) {
+    init?(stream: DataStream, messageType: TLSMessageExtensionType) {
         type = TLSExtensionType(rawValue: stream.readUInt16()!)!
         let length = stream.readUInt16()!
         let entryStream = stream.read(count: length)!.stream
-        switch handshake {
+        switch messageType {
         case .clientHello:
             var entries: [KeyShareEntry] = []
             entryStream.read(count: 2)
@@ -224,7 +234,7 @@ struct TLSKeyShareExtension: Streamable, TLSExtension {
         case .helloRetryRequest:
             keyShare = .helloRetryRequest(.secp256r1)
         default:
-            keyShare = .helloRetryRequest(.secp256r1)
+            keyShare = .helloRetryRequest(.x25519)
         }
     }
     
@@ -273,8 +283,7 @@ struct KeyShareEntry: Streamable {
     }
     
     init?(stream: DataStream) {
-        guard let g = NamedGroup(rawValue: stream.readUInt16() ?? 0) else { return nil }
-        group = g
+        group = NamedGroup(rawValue: stream.readUInt16() ?? 0) ?? .reserved
         let length = stream.readUInt16() ?? 0
         keyExchange = stream.read(count: length) ?? []
     }
@@ -287,5 +296,44 @@ struct KeyShareEntry: Streamable {
 extension Data {
     var uint8Array: [UInt8] {
         return [UInt8](self)
+    }
+}
+
+enum TLS1_3 {}
+
+extension TLS1_3 {
+    static let tls1_3_prefix                        = [UInt8]("tls13 ".utf8)
+    
+    static let externalPSKBinderSecretLabel         = [UInt8]("ext binder".utf8)
+    static let resumptionPSKBinderSecretLabel       = [UInt8]("res binder".utf8)
+    static let clientEarlyTrafficSecretLabel        = [UInt8]("c e traffic".utf8)
+    static let earlyExporterMasterSecretLabel       = [UInt8]("e exp master".utf8)
+
+    static let clientHandshakeTrafficSecretLabel    = [UInt8]("c hs traffic".utf8)
+    static let serverHandshakeTrafficSecretLabel    = [UInt8]("s hs traffic".utf8)
+    static let clientApplicationTrafficSecretLabel  = [UInt8]("c ap traffic".utf8)
+    static let serverApplicationTrafficSecretLabel  = [UInt8]("s ap traffic".utf8)
+    static let exporterSecretLabel                  = [UInt8]("exp master".utf8)
+    static let resumptionMasterSecretLabel          = [UInt8]("res master".utf8)
+    static let finishedLabel                        = [UInt8]("finished".utf8)
+    static let derivedLabel                         = [UInt8]("derived".utf8)
+    static let resumptionLabel                      = [UInt8]("resumption".utf8)
+
+    static let clientCertificateVerifyContext       = [UInt8]("TLS 1.3, client CertificateVerify".utf8)
+    static let serverCertificateVerifyContext       = [UInt8]("TLS 1.3, server CertificateVerify".utf8)
+    
+    class HandshakeState {
+        var preSharedKey: [UInt8]?
+        var earlySecret: [UInt8]?
+        var clientEarlyTrafficSecret: [UInt8]?
+        var handshakeSecret: [UInt8]?
+        var clientHandshakeTrafficSecret: [UInt8]?
+        var serverHandshakeTrafficSecret: [UInt8]?
+        var masterSecret: [UInt8]?
+        var clientTrafficSecret: [UInt8]?
+        var serverTrafficSecret: [UInt8]?
+        var sessionResumptionSecret: [UInt8]?
+        var resumptionBinderSecret: [UInt8]?
+        var selectedIdentity: UInt16?
     }
 }

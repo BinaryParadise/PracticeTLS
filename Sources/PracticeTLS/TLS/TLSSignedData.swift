@@ -16,6 +16,10 @@ public enum HashAlgorithm : UInt8 {
     case sha384 = 5
     case sha512 = 6
     
+    var hmac: HMACFunction {
+        return macAlgorithm.hmacFunction
+    }
+    
     var macAlgorithm: MACAlgorithm {
         switch self {
         case .md5:

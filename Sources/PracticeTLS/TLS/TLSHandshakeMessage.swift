@@ -67,7 +67,7 @@ public class TLSHandshakeMessage: TLSMessage {
             break
         case .clientKeyExchange:
             message = TLSClientKeyExchange(stream: data.stream, context: context)
-        case .finished:
+        case .encryptedExtensions, .finished:
             break
         }
         return message

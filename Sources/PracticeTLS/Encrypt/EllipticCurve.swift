@@ -9,6 +9,8 @@
 import Foundation
 
 public enum NamedGroup : UInt16 {
+    // 保留
+    case reserved = 0x3a3a
     case secp256r1 = 0x17
     case secp384r1 = 0x18
     case secp521r1 = 0x19

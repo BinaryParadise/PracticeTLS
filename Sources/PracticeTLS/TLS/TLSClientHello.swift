@@ -14,7 +14,7 @@ public class TLSClientHello: TLSHandshakeMessage {
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = []
     var keyExchange: [UInt8] {
-        return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: .secp256r1)?.keyExchange ?? []
+        return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: .x25519)?.keyExchange ?? []
     }
 
     public override init?(stream: DataStream, context: TLSConnection) {
@@ -44,19 +44,20 @@ public class TLSClientHello: TLSHandshakeMessage {
             compressionMethod = CompressionMethod(rawValue: method) ?? .null
         }
         if let extLen = stream.readUInt16(), let bytes = stream.read(count: Int(extLen)) {
-            extensions = TLSExtensionsfromData(bytes)
+            extensions = TLSExtensionsfromData(bytes, messageType: .clientHello)
         }
         
         if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) != nil {
             if keyExchange.count == 0 {
-                nextMessage = TLSHelloRetryRequest(client: self)
-                return
+                nextMessage = TLSHelloRetryRequest(client: self, context: context)                
+            } else {                
+                nextMessage = TLSServerHello(client: self, context: context)
             }
+        } else {
+            nextMessage = TLSServerHello(client: self, context: context)
         }
         //踩坑：这里要完整的，而不是28字节⚠️⚠️⚠️⚠️⚠️
         context.securityParameters.clientRandom = random.dataWithBytes()
-        context.handshakeMessages.append(self)
-        nextMessage = TLSServerHello(client: self, context: context)
     }
     
     func extend(_ type: TLSExtensionType) -> TLSExtension? {
