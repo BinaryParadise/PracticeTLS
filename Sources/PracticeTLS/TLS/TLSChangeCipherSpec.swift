@@ -8,14 +8,12 @@
 import Foundation
 
 class TLSChangeCipherSpec: TLSMessage {
-    var isClient: Bool = false
     
     init() {
         super.init(.changeCipherSpec)
     }
     
     override init?(stream: DataStream, context: TLSConnection) {        
-        isClient = true
         super.init(.changeCipherSpec)
     }
     

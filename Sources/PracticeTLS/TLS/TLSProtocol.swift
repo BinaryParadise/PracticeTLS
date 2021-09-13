@@ -337,3 +337,10 @@ extension TLS1_3 {
         var selectedIdentity: UInt16?
     }
 }
+
+protocol TLSRecordProtocol {
+    var cipherChanged: Bool { get set}
+    init(_ context: TLSConnection)
+    func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws
+    func didWriteMessage(_ tag: RWTags) -> RWTags?
+}

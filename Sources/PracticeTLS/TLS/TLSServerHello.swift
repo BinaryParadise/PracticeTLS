@@ -47,6 +47,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         }) as? TLSSupportedVersionsExtension {
             if suppertedVersions.versions.contains(.V1_3) {
                 supportVersion = .V1_3
+                context.record = TLSRecord1_3(context)
             }
         }
         
@@ -82,8 +83,9 @@ public class TLSServerHello: TLSHandshakeMessage {
             extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: .x25519, keyExchange:pubKey))))
             
             context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: pubKey)
-            context.cipherChanged = true
-            nextMessage = TLSEncryptedExtensions()
+            let spec = TLSChangeCipherSpec()
+            spec.nextMessage = TLSEncryptedExtensions(context: context)
+            nextMessage = spec
         } else {
             let cert = TLSCertificate()
             cert.nextMessage = try? TLSServerKeyExchange(cipherSuite, pubKey: pubKey, serverHello: self)

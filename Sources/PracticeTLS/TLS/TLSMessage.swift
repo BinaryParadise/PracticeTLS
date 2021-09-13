@@ -10,12 +10,27 @@ import Foundation
 public class TLSMessage: Streamable {
     var type: TLSMessageType = .handshake(.clientHello)
     
+    var nextMessage: TLSMessage?
+    
     /// 默认版本TLS 1.2
     var version: TLSVersion = .V1_2
     var rawData: [UInt8] = []
 
     /// 握手协议内容长度（不包括协议头）
     var contentLength: UInt16 = 0
+    
+    var rwtag: RWTags {
+        switch type {
+        case .changeCipherSpec:
+            return .changeCipherSpec
+        case .handshake(let handshakeType):
+            return .handshake(handshakeType)
+        case .alert:
+            return .alert
+        case .applicationData:
+            return .applicationData
+        }
+    }
     
     init(_ type : TLSMessageType) {
         self.type = type

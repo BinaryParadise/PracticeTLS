@@ -17,7 +17,6 @@ public class TLSHandshakeMessage: TLSMessage {
         }
     }
     var clientVersion: TLSVersion = .V1_2
-    var nextMessage: TLSHandshakeMessage?
     var encrypted: [UInt8] = []
     
     init(_ type: TLSHandshakeType = .clientHello) {

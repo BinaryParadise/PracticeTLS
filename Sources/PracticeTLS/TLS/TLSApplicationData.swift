@@ -10,17 +10,15 @@ import Foundation
 class TLSApplicationData: TLSMessage {
     var encryptedData: [UInt8] = []
     init(_ data: [UInt8], context: TLSConnection) {
-        if let ed = context.securityParameters.encrypt(data, contentType: .applicationData, iv: nil) {
+        if context.record.cipherChanged, let ed = context.securityParameters.encrypt(data, contentType: .applicationData, iv: nil) {
             encryptedData = ed
-            context.securityParameters.write?.sequenceNumber += 1
         }
         super.init(.applicationData)
     }
     
     init(_ msg: TLSMessage, context: TLSConnection) {
-        if let ed = context.securityParameters.encrypt(msg.dataWithBytes(), contentType: msg.type, iv: nil) {
+        if context.record.cipherChanged, let ed = context.securityParameters.encrypt(msg.dataWithBytes(), contentType: msg.type, iv: nil) {
             encryptedData = ed
-            context.securityParameters.write?.sequenceNumber += 1
         }
         super.init(.applicationData)
     }

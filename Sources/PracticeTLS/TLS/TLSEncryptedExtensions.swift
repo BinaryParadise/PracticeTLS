@@ -8,10 +8,12 @@
 import Foundation
 
 class TLSEncryptedExtensions: TLSHandshakeMessage {
-    init() {
+    init(context: TLSConnection) {
         super.init(.encryptedExtensions)
         
-        nextMessage = TLSCertificate()
+        let cert = TLSCertificate()
+        cert.nextMessage = context.verifyDataForFinishedMessage(isClient: false)
+        nextMessage = cert
     }
     
     override func dataWithBytes() -> [UInt8] {

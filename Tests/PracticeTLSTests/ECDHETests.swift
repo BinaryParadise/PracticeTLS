@@ -25,7 +25,7 @@ class ECDHETests: XCTestCase {
         let serverRandom: [UInt8] = "26E9FF2A03CFFD4E50D487011DF21E26677CF8439E701A3CAC7C554BB7DA86C2".uint8Array
         let masterSecret: [UInt8] = "794FBE34E50C515664D4DB279663028F6CE11692D9F8EB64A803F77835F20711611BC910D3A7120EDC03099FB644A4D4".uint8Array
         
-        let ecdh = try ECDHEncryptor(priKey)
+        let ecdh = try ECDHEncryptor(priKey, group: .secp256r1)
         
         XCTAssertEqual(pubKey, ecdh.exportPublickKey())
         
