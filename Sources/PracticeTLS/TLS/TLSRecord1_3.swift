@@ -70,20 +70,11 @@ class TLSRecord1_3: TLSRecordProtocol {
     }
     
     func didWriteMessage(_ tag: RWTags) -> RWTags? {
-        let sendNext:() -> Bool = { [weak self] in
-            if let msg = self?.context.nextMessage {
-                self?.context.sendMessage(msg: msg)
-                return true
-            }
-            return false
-        }
-        
         switch tag {
         case .changeCipherSpec:
+            cipherChanged = true
             if let msg = context.nextMessage {
-                if let encrypted = s.encrypt(msg.dataWithBytes(), contentType: msg.type) {
-                    context.sendMessage(msg: TLSApplicationData(encrypted, context: context))
-                }
+                context.sendMessage(msg: msg)
             }
         case .handshake(let handshakeType):
             if let msg = context.nextMessage {
@@ -101,7 +92,7 @@ class TLSRecord1_3: TLSRecordProtocol {
             if handshaked {
                 TLSSessionManager.shared.delegate?.didWriteApplication(context, tag: context.readWriteTag)
             } else {
-                _ = sendNext()
+                context.sendMessage(msg: context.nextMessage)
             }
         default:
             break

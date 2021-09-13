@@ -118,7 +118,7 @@ public class TLSConnection: NSObject {
     
     public func writeApplication(data: [UInt8], tag: Int) {
         readWriteTag = tag
-        sendMessage(msg: TLSApplicationData(data, context: self))
+        sendMessage(msg: TLSApplicationData(plantData: data))
     }
     
     func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) throws -> [UInt8]? {
@@ -127,7 +127,7 @@ public class TLSConnection: NSObject {
     
     func sendMessage(msg: TLSMessage?) {
         guard let msg = msg else { return }
-        let sendData: [UInt8] = msg.dataWithBytes()
+        let sendData: [UInt8] = record.cipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
         nextMessage = msg.nextMessage
         if msg is TLSHandshakeMessage {
             handshakeMessages.append(msg)

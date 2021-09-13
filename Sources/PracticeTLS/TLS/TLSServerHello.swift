@@ -55,7 +55,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         if supportVersion == .V1_3 {
             cipherSuite = .TLS_AES_128_GCM_SHA256
         } else {
-            let expectedCipher: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
+            let expectedCipher: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA256
             if client.cipherSuites.contains(expectedCipher) {
                 cipherSuite = expectedCipher
             }
@@ -76,7 +76,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         }
     }
     
-    func serverKeyExchange(_ pubKey: [UInt8], context: TLSConnection) {
+    private func serverKeyExchange(_ pubKey: [UInt8], context: TLSConnection) {
         
         if supportVersion == .V1_3 {
             extensions.append(TLSSupportedVersionsExtension())

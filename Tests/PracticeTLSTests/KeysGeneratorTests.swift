@@ -173,7 +173,7 @@ class KeysGeneratorTests: XCTestCase {
         
         let recordIV = [UInt8](cipherData[0..<s.recordIVLength])
         
-        let encrypted = s.encrypt(decrypted ?? [], contentType: .handshake(.finished), iv: recordIV)
+        let encrypted = s.encrypt([1,2] ?? [], contentType: .handshake(.finished), iv: recordIV)
         XCTAssertEqual(encrypted, cipherData)
     }
 }

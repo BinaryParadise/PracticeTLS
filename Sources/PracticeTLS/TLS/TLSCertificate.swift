@@ -14,9 +14,6 @@ extension Bundle {
 }
 
 public class TLSCertificate: TLSHandshakeMessage {
-    var certData: Data = Data()
-    var bodyLength: Int = 0
-    var certsLength: Int = 0
     
     override init(_ type: TLSHandshakeType = .clientHello) {
         super.init(.certificate)

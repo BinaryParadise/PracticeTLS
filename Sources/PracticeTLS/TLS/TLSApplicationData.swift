@@ -9,6 +9,12 @@ import Foundation
 
 class TLSApplicationData: TLSMessage {
     var encryptedData: [UInt8] = []
+    
+    init(plantData: [UInt8]) {
+        encryptedData = plantData
+        super.init(.applicationData)
+    }
+    
     init(_ data: [UInt8], context: TLSConnection) {
         if context.record.cipherChanged, let ed = context.securityParameters.encrypt(data, contentType: .applicationData, iv: nil) {
             encryptedData = ed
@@ -21,6 +27,7 @@ class TLSApplicationData: TLSMessage {
             encryptedData = ed
         }
         super.init(.applicationData)
+        nextMessage = msg.nextMessage
     }
     
     override init?(stream: DataStream, context: TLSConnection) {
