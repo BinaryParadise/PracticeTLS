@@ -28,8 +28,8 @@ class TLSRecord1_2: TLSRecordProtocol {
             if let handshake = msg as? TLSHandshakeMessage {
                 switch handshake.handshakeType {
                 case .finished:
+                    s.clientVerifyData = context.verifyDataForFinishedMessage(isClient: true).dataWithBytes()
                     s.clientVerifyData = try context.decryptAndVerifyMAC(contentType: handshake.type, data: handshake.messageData()) ?? []
-                    assert(s.clientVerifyData.count > 0)
                     context.sock.writeData(data: TLSChangeCipherSpec().dataWithBytes(), tag: .changeCipherSpec)
                 default:
                     context.handshakeMessages.append(handshake)

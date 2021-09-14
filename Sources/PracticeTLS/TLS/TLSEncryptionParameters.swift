@@ -7,8 +7,9 @@
 
 import Foundation
 import CryptoSwift
+import CryptoKit
 
-public class TLSSecurityParameters
+public class TLSSecurityParameters: CustomStringConvertible
 {
     public var version: TLSVersion
     public var bulkCipherAlgorithm : CipherAlgorithm
@@ -18,6 +19,7 @@ public class TLSSecurityParameters
     public var blockLength : Int = 0
     public var fixedIVLength : Int = 0
     public var recordIVLength : Int = 0
+    public var authTagSize: Int = 0
     public var hashAlgorithm: HashAlgorithm = .sha256
     public var preMasterSecret: [UInt8] = []
     public var masterSecret : [UInt8] = []
@@ -43,9 +45,12 @@ public class TLSSecurityParameters
             let clientRandom:[UInt8] = [\(clientRandom.toHexArray())]
             let serverRandom:[UInt8] = [\(serverRandom.toHexArray())]
             let readBulkKey:[UInt8] = [\(readEncryptionParameters.bulkKey.toHexArray())]
+            let readFixedIV:[UInt8] = \"(\(readEncryptionParameters.fixedIV.toHexString())\".uint8Array
             let readMacKey:[UInt8] = [\(readEncryptionParameters.MACKey.toHexArray())]
+            
             let writeBulkKey:[UInt8] = [\(writeEncryptionParameters.bulkKey.toHexArray())]
             let writeMacKey:[UInt8] = [\(writeEncryptionParameters.MACKey.toHexArray())]
+            let writeFixedIV:[UInt8] = \"(\(writeEncryptionParameters.fixedIV.toHexString())\".uint8Array
             let clientVerifyData:[UInt8] = [\(clientVerifyData.toHexArray())]
             let serverVerifyData:[UInt8] = [\(serverVerifyData.toHexArray())]
             """
@@ -65,6 +70,7 @@ public class TLSSecurityParameters
         blockLength         = cipherAlgorithm.blockSize
         fixedIVLength       = cipherSuiteDescriptor.fixedIVLength
         recordIVLength      = cipherSuiteDescriptor.recordIVLength
+        authTagSize         = cipherSuiteDescriptor.authTagSize
         readEncryptionParameters = TLSEncryptionParameters(MACKey: [], bulkKey: [], fixedIV: [], hmac: cipherSuiteDescriptor.hashAlgorithm.macAlgorithm)
         writeEncryptionParameters = TLSEncryptionParameters(MACKey: [], bulkKey: [], fixedIV: [], hmac: cipherSuiteDescriptor.hashAlgorithm.macAlgorithm)
     }
@@ -129,7 +135,23 @@ extension TLSSecurityParameters {
         let recordIV = iv ?? AES.randomIV(recordIVLength)
         let IV = (isAEAD ? encryption.fixedIV:[]) + recordIV
         do {
-            let macHeader = isAEAD ? encryption.MACHeader(contentType, dataLength: myPlantText.count) : []
+            let macHeader = isAEAD ? encryption.MACHeader(contentType, dataLength: myPlantText.count) ?? [] : []
+            //启用 CryptoKit
+            #if true
+            
+            let key = SymmetricKey(data: encryption.bulkKey)
+            if bulkCipherAlgorithm == .chacha20 {
+                let nonce = (0.bytes + encryption.sequenceNumber.bytes) ^ encryption.fixedIV
+                let sealedBox = try ChaChaPoly.seal(myPlantText, using: key, nonce: .init(data: nonce), authenticating: macHeader)
+                encryption.sequenceNumber += 1
+                return sealedBox.ciphertext + sealedBox.tag.bytes
+            }
+            
+            let b = try CryptoKit.AES.GCM.seal(myPlantText, using: key, nonce: .init(data: IV), authenticating: macHeader)
+            var cipherText = recordIV+b.ciphertext.bytes+b.tag
+            
+            #else
+            
             let blockMode:BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, additionalAuthenticatedData: macHeader)
             let aes = try AES(key: encryption.bulkKey, blockMode: blockMode, padding: blockCipherMode == .cbc ? .pkcs7 : .noPadding)
             var cipherText = try aes.encrypt(myPlantText)
@@ -137,6 +159,9 @@ extension TLSSecurityParameters {
                 cipherText.append(contentsOf: gcm.authenticationTag ?? [])
             }
             cipherText.insert(contentsOf: recordIV, at: 0)
+            
+            #endif
+            
             encryption.sequenceNumber += 1
             return cipherText
         } catch {
@@ -147,22 +172,44 @@ extension TLSSecurityParameters {
     
     public func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
         let decryption = readEncryptionParameters
+        if encryptedData.count < recordIVLength+blockLength {
+            return nil
+        }
         let isAEAD = cipherType == .aead
         let IV = (isAEAD ? decryption.fixedIV :[]) + [UInt8](encryptedData[0..<recordIVLength])
+        
         let cipherText: [UInt8]
         
         var authTag : [UInt8] = []
         if blockCipherMode == .gcm {
-            cipherText = [UInt8](encryptedData[recordIVLength..<(encryptedData.count - blockLength)])
-            authTag = [UInt8](encryptedData[(encryptedData.count - blockLength)..<encryptedData.count])
+            cipherText = [UInt8](encryptedData[recordIVLength..<(encryptedData.count - authTagSize)])
+            authTag = [UInt8](encryptedData[(encryptedData.count - authTagSize)..<encryptedData.count])
         } else {
             cipherText = [UInt8](encryptedData[recordIVLength..<encryptedData.count])
         }
         
-        let macHeader = isAEAD ? decryption.MACHeader(contentType, dataLength: encryptedData.count - recordIVLength - blockLength) : []
-        let blockMode: BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, authenticationTag: authTag, additionalAuthenticatedData: macHeader)
+        let macHeader = isAEAD ? decryption.MACHeader(contentType, dataLength: cipherText.count) ?? [] : []
+        
 
         do {
+            //启用 CryptoKit
+            #if true
+            
+            let key = SymmetricKey(data: decryption.bulkKey)
+            if bulkCipherAlgorithm == .chacha20 {
+                let nonce = (0.bytes + decryption.sequenceNumber.bytes) ^ decryption.fixedIV
+                let decrypted = try ChaChaPoly.open(.init(combined: nonce+encryptedData), using: key, authenticating: macHeader).bytes
+                decryption.sequenceNumber += 1
+                return decrypted
+            }
+            
+            let message = try CryptoKit.AES.GCM.open(.init(combined: IV+cipherText+authTag), using: key, authenticating: macHeader).bytes
+            decryption.sequenceNumber += 1
+            return message
+            
+            #else
+            
+            let blockMode: BlockMode = blockCipherMode == .cbc ? CBC(iv: IV) : GCM(iv: IV, authenticationTag: authTag, additionalAuthenticatedData: macHeader)
             let aes = try AES(key: decryption.bulkKey, blockMode: blockMode, padding: blockCipherMode == .cbc ? .pkcs7: .noPadding)
             let message = try aes.decrypt(cipherText)
             if isAEAD {
@@ -172,6 +219,8 @@ extension TLSSecurityParameters {
                 decryption.sequenceNumber += 1
                 return message
             }
+            
+            #endif
             let messageLength = message.count - decryption.hmac.size
             let messageContent = [UInt8](message[0..<messageLength])
             
@@ -224,7 +273,7 @@ public class TLSEncryptionParameters {
     }
     
     func MACHeader(_ contentType: TLSMessageType, dataLength: Int, version: TLSVersion = .V1_2) -> [UInt8]? {
-        LogWarn("\(title) -> sequenceNumber: \(sequenceNumber)")
+        //LogWarn("\(title) -> sequenceNumber: \(sequenceNumber)")
         var macData: [UInt8] = []
         macData.append(contentsOf: sequenceNumber.bytes)
         macData.append(contentType.rawValue)

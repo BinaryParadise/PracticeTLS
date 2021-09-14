@@ -91,6 +91,17 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         authTagSize: 16,
         hashFunction: .sha256
     ),
+    CipherSuiteDescriptor(
+        cipherSuite: .TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        keyExchangeAlgorithm: .ecdhe,
+        bulkCipherAlgorithm: .chacha20,
+        cipherType: .aead,
+        blockCipherMode: .gcm,
+        fixedIVLength: 12,
+        recordIVLength: 0,
+        authTagSize: 16,
+        hashFunction: .sha256
+    ),
     
     CipherSuiteDescriptor(
         cipherSuite: .TLS_RSA_WITH_AES_128_GCM_SHA256,
@@ -114,6 +125,14 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         fixedIVLength: 4,
         recordIVLength: 8,
         authTagSize: 16,
+        hashFunction: .sha256,
+        supportedProtocolVersions: [.V1_3]
+    ),
+    CipherSuiteDescriptor(
+        cipherSuite: .TLS_CHACHA20_POLY1305_SHA256,
+        keyExchangeAlgorithm: .ecdhe,
+        bulkCipherAlgorithm: .chacha20,
+        cipherType: .stream,
         hashFunction: .sha256,
         supportedProtocolVersions: [.V1_3]
     )

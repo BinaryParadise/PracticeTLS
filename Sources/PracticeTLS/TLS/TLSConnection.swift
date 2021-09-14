@@ -21,7 +21,7 @@ public class TLSConnection: NSObject {
     var preMasterKey: [UInt8] = []
     var handshakeMessages: [TLSMessage] = []
     public var version: TLSVersion = .V1_2
-    public var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_256_CBC_SHA
+    public var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
     var securityParameters: TLSSecurityParameters
     var maximumRecordSize: Int = 2048
     private var http2Enabled = false
@@ -90,6 +90,7 @@ public class TLSConnection: NSObject {
         s.recordIVLength      = cipherSuiteDescriptor.recordIVLength
         s.readEncryptionParameters.hmac          = cipherSuiteDescriptor.hashAlgorithm.macAlgorithm
         s.writeEncryptionParameters.hmac         = cipherSuiteDescriptor.hashAlgorithm.macAlgorithm
+        s.authTagSize = cipherSuiteDescriptor.authTagSize
         s.preMasterSecret = preMasterKey
         do {
             keyExchange = try cipherSuiteDescriptor.keyExchangeAlgorithm == .rsa ? .rsa : .ecdha(.init())
@@ -118,28 +119,32 @@ public class TLSConnection: NSObject {
     
     public func writeApplication(data: [UInt8], tag: Int) {
         readWriteTag = tag
-        sendMessage(msg: TLSApplicationData(plantData: data))
+        sendData(TLSApplicationData(data, context: self).dataWithBytes(), tag: .applicationData)
     }
     
     func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) throws -> [UInt8]? {
         return try securityParameters.decrypt(data, contentType: contentType)
     }
-    
+        
     func sendMessage(msg: TLSMessage?) {
         guard let msg = msg else { return }
-        let sendData: [UInt8] = record.cipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
+        let data: [UInt8] = record.cipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
         nextMessage = msg.nextMessage
         if msg is TLSHandshakeMessage {
             handshakeMessages.append(msg)
         }
+        sendData(data, tag: msg.rwtag)
+    }
+    
+    func sendData(_ sendData: [UInt8], tag: RWTags) {
         if maximumRecordSize < sendData.count {
             let page = (sendData.count/maximumRecordSize+(sendData.count%maximumRecordSize > 0 ? 1:0))
             for i in 0..<page {
                 let cur = sendData[i*maximumRecordSize..<min(sendData.count, (i+1)*maximumRecordSize)]
-                sock.writeData(data: Array(cur), tag: i < page-1 ? .fragment : msg.rwtag)
+                sock.writeData(data: Array(cur), tag: i < page-1 ? .fragment : tag)
             }
         } else {
-            sock.writeData(data: sendData, tag: msg.rwtag)
+            sock.writeData(data: sendData, tag: tag)
         }
     }
 }

@@ -13,11 +13,12 @@ public enum CipherAlgorithm
     case null
     case aes128
     case aes256
+    case chacha20
     
     var blockSize : Int {
         get {
             switch self {
-            case .null: return 0
+            case .null, .chacha20: return 0
             case .aes128: return 16
             case .aes256: return 16
             }
@@ -31,6 +32,7 @@ public enum CipherAlgorithm
             case .null: return 0
             case .aes128: return 16
             case .aes256: return 32
+            case .chacha20: return 32
             }
         }
     }
