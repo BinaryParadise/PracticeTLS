@@ -56,8 +56,6 @@ public class TLSClientHello: TLSHandshakeMessage {
         } else {
             nextMessage = TLSServerHello(client: self, context: context)
         }
-        //踩坑：这里要完整的，而不是28字节⚠️⚠️⚠️⚠️⚠️
-        context.securityParameters.clientRandom = random.dataWithBytes()
         context.nextMessage = nextMessage
     }
     

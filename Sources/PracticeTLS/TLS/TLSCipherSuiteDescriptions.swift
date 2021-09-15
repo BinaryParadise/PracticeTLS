@@ -43,7 +43,7 @@ struct CipherSuiteDescriptor {
         self.keyExchangeAlgorithm = keyExchangeAlgorithm
         self.bulkCipherAlgorithm = bulkCipherAlgorithm
         self.cipherType = cipherType
-        self.blockCipherMode = blockCipherMode ?? .cbc
+        self.blockCipherMode = blockCipherMode ?? .gcm
         self.fixedIVLength = fixedIVLength != 0 ? fixedIVLength : bulkCipherAlgorithm.blockSize
         self.recordIVLength = recordIVLength != 0 ? recordIVLength : bulkCipherAlgorithm.blockSize
         self.authTagSize = authTagSize
@@ -122,8 +122,7 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         bulkCipherAlgorithm: .aes128,
         cipherType: .aead,
         blockCipherMode: .gcm,
-        fixedIVLength: 4,
-        recordIVLength: 8,
+        fixedIVLength: 12,
         authTagSize: 16,
         hashFunction: .sha256,
         supportedProtocolVersions: [.V1_3]
@@ -132,7 +131,11 @@ let TLSCipherSuiteDescriptions : [CipherSuiteDescriptor] = [
         cipherSuite: .TLS_CHACHA20_POLY1305_SHA256,
         keyExchangeAlgorithm: .ecdhe,
         bulkCipherAlgorithm: .chacha20,
-        cipherType: .stream,
+        cipherType: .aead,
+        blockCipherMode: .gcm,
+        fixedIVLength: 12,
+        recordIVLength: 0,
+        authTagSize: 16,
         hashFunction: .sha256,
         supportedProtocolVersions: [.V1_3]
     )

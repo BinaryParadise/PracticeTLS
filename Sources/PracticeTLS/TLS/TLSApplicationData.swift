@@ -16,14 +16,14 @@ class TLSApplicationData: TLSMessage {
     }
     
     init(_ data: [UInt8], context: TLSConnection) {
-        if context.record.cipherChanged, let ed = context.securityParameters.encrypt(data, contentType: .applicationData, iv: nil) {
+        if context.record.cipherChanged, let ed = context.record.encrypt(data, contentType: .applicationData, iv: nil) {
             encryptedData = ed
         }
         super.init(.applicationData)
     }
     
     init(_ msg: TLSMessage, context: TLSConnection) {
-        if context.record.cipherChanged, let ed = context.securityParameters.encrypt(msg.dataWithBytes(), contentType: msg.type, iv: nil) {
+        if context.record.cipherChanged, let ed = context.record.encrypt(msg.messageData(), contentType: msg.type, iv: nil) {
             encryptedData = ed
         }
         super.init(.applicationData)

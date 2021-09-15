@@ -41,28 +41,25 @@ public class TLSServerHello: TLSHandshakeMessage {
         extLen = 9
         #endif
         
-        //选定TLS版本
-        if let suppertedVersions = client.extensions.first(where: { ext in
-            ext is TLSSupportedVersionsExtension
-        }) as? TLSSupportedVersionsExtension {
-            if suppertedVersions.versions.contains(.V1_3) {
-                supportVersion = .V1_3
-                context.record = TLSRecord1_3(context)
-            }
-        }
-        
-        //选定加密套件
-        if supportVersion == .V1_3 {
-            cipherSuite = .TLS_CHACHA20_POLY1305_SHA256
+        //确定版本、加密套件
+        if (client.extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) ?? false {
+            cipherSuite = .TLS_AES_128_GCM_SHA256
+            supportVersion = .V1_3
+            context.record = TLS1_3.TLSRecord(context)
+            context.preMasterKey = client.keyExchange
         } else {
             let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
             if client.cipherSuites.contains(expectedCipher) {
                 cipherSuite = expectedCipher
             }
+            context.record = TLS1_2.TLSRecord(context)
         }
-        
-        context.setPendingSecurityParametersForCipherSuite(cipherSuite)
-        context.securityParameters.serverRandom = random.dataWithBytes()
+                        
+        //踩坑：这里要完整32字节⚠️⚠️⚠️⚠️⚠️
+        context.record.s.clientRandom = client.random.dataWithBytes()
+        context.record.s.serverRandom = random.dataWithBytes()
+        context.record.setPendingSecurityParametersForCipherSuite(cipherSuite)
+        context.cipherSuite = cipherSuite
         
         version = context.version
                 
@@ -74,15 +71,16 @@ public class TLSServerHello: TLSHandshakeMessage {
         case .ecdha(let encryptor):
             serverKeyExchange(encryptor.exportPublickKey(), context: context)
         }
+        
+        context.record.derivedSecret()
     }
     
     private func serverKeyExchange(_ pubKey: [UInt8], context: TLSConnection) {
-        
         if supportVersion == .V1_3 {
             extensions.append(TLSSupportedVersionsExtension())
             extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: .x25519, keyExchange:pubKey))))
             
-            context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: pubKey)
+            //context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: pubKey)
             let spec = TLSChangeCipherSpec()
             spec.nextMessage = TLSEncryptedExtensions(context: context)
             nextMessage = spec
