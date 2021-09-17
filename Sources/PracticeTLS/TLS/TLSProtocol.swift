@@ -8,6 +8,8 @@
 import Foundation
 import CryptoSwift
 
+public var selectedCurve: NamedGroup = .secp256r1
+
 public enum ContentType: UInt8 {
     case changeCipherSpec = 20
     case alert            = 21
@@ -105,6 +107,8 @@ public enum TLSHandshakeType: UInt8 {
     // TLS 1.3
     case helloRetryRequest  = 6
     case encryptedExtensions = 8
+    
+    case messageHash = 254
 }
 
 enum TLSExtensionType: UInt16 {
@@ -234,7 +238,7 @@ struct TLSKeyShareExtension: Streamable, TLSExtension {
         case .helloRetryRequest:
             keyShare = .helloRetryRequest(.secp256r1)
         default:
-            keyShare = .helloRetryRequest(.x25519)
+            keyShare = .helloRetryRequest(selectedCurve)
         }
     }
     
@@ -335,7 +339,12 @@ extension TLS1_3 {
         var sessionResumptionSecret: [UInt8]?
         var resumptionBinderSecret: [UInt8]?
         var selectedIdentity: UInt16?
-        var hashAlgorithm: HashAlgorithm = .sha256
+        var hashAlgorithm: HashAlgorithm
+        
+        init(_ hashAlgorithm: HashAlgorithm = .sha256) {
+            self.hashAlgorithm = hashAlgorithm
+            deriveEarlySecret()
+        }
                                 
         func deriveHandshakeSecret(with sharedSecret: [UInt8], transcriptHash: [UInt8]) {
             let derivedSecret = Derive_Secret(secret: earlySecret!, label: derivedLabel, transcriptHash: hashAlgorithm.hashFunction([]))
@@ -349,11 +358,14 @@ extension TLS1_3 {
         }
         
         // TLS 1.3 uses HKDF to derive its key material
-        func HKDF_Extract(salt: [UInt8], inputKeyingMaterial: [UInt8]) -> [UInt8] {
-            return hashAlgorithm.hmac(salt, inputKeyingMaterial)
+        internal func HKDF_Extract(salt: [UInt8], inputKeyingMaterial: [UInt8]) -> [UInt8] {
+            let HMAC = hashAlgorithm.hmac
+            return HMAC(salt, inputKeyingMaterial)
         }
         
-        func HKDF_Expand(prk: [UInt8], info: [UInt8], outputLength: Int) -> [UInt8] {
+        internal func HKDF_Expand(prk: [UInt8], info: [UInt8], outputLength: Int) -> [UInt8] {
+            let HMAC = hashAlgorithm.hmac
+            
             let hashLength = hashAlgorithm.hashLength
             
             let n = Int(ceil(Double(outputLength)/Double(hashLength)))
@@ -361,7 +373,7 @@ extension TLS1_3 {
             var output : [UInt8] = []
             var roundOutput : [UInt8] = []
             for i in 0..<n {
-                roundOutput = hashAlgorithm.hmac(prk, roundOutput + info + [UInt8(i + 1)])
+                roundOutput = HMAC(prk, roundOutput + info + [UInt8(i + 1)])
                 output += roundOutput
             }
             
@@ -370,9 +382,9 @@ extension TLS1_3 {
         
         func HKDF_Expand_Label(secret: [UInt8], label: [UInt8], hashValue: [UInt8], outputLength: Int) -> [UInt8] {
             
-            let label = tls1_3_prefix + label
+            let lbl = tls1_3_prefix + label
             var hkdfLabel = [UInt8((outputLength >> 8) & 0xff), UInt8(outputLength & 0xff)]
-            hkdfLabel += [UInt8(label.count)] + label
+            hkdfLabel += [UInt8(label.count)] + lbl
             hkdfLabel += [UInt8(hashValue.count)] + hashValue
             
             return HKDF_Expand(prk: secret, info: hkdfLabel, outputLength: outputLength)
@@ -382,13 +394,9 @@ extension TLS1_3 {
             return HKDF_Expand_Label(secret: secret, label: label, hashValue: transcriptHash, outputLength: transcriptHash.count)
         }
 
-        func deriveEarlySecret() {
+        private func deriveEarlySecret() {
             let zeroes = [UInt8](repeating: 0, count: hashAlgorithm.hashLength)
             earlySecret = HKDF_Extract(salt: zeroes, inputKeyingMaterial: preSharedKey ?? zeroes)
-        }
-        
-        func deriveEarlyTrafficSecret(transcriptHash: [UInt8]) {
-            clientEarlyTrafficSecret = Derive_Secret(secret: earlySecret!, label: TLS1_3.clientEarlyTrafficSecretLabel, transcriptHash: transcriptHash)
         }
     }
 }
@@ -399,7 +407,7 @@ protocol TLSRecordProtocol {
     init(_ context: TLSConnection)
     func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws
     func didWriteMessage(_ tag: RWTags) -> RWTags?
-    func derivedSecret()
+    func derivedSecret(_ transcriptHash: [UInt8]?)
     func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8])
     func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]?) -> [UInt8]?
     func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]?

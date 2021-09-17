@@ -22,7 +22,6 @@ public class TLSServerHello: TLSHandshakeMessage {
     }
     var hmac = HashAlgorithm.sha256.macAlgorithm.hmacFunction
     
-    var supportVersion: TLSVersion?
     var client: TLSClientHello?
 
     init(client: TLSClientHello, context: TLSConnection) {
@@ -44,7 +43,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         //确定版本、加密套件
         if (client.extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) ?? false {
             cipherSuite = .TLS_AES_128_GCM_SHA256
-            supportVersion = .V1_3
+            context.negotiatedProtocolVersion = .V1_3
             context.record = TLS1_3.TLSRecord(context)
             context.preMasterKey = client.keyExchange
         } else {
@@ -71,19 +70,14 @@ public class TLSServerHello: TLSHandshakeMessage {
         case .ecdha(let encryptor):
             serverKeyExchange(encryptor.exportPublickKey(), context: context)
         }
-        
-        context.record.derivedSecret()
     }
     
     private func serverKeyExchange(_ pubKey: [UInt8], context: TLSConnection) {
-        if supportVersion == .V1_3 {
+        if context.negotiatedProtocolVersion == .V1_3 {
             extensions.append(TLSSupportedVersionsExtension())
-            extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: .x25519, keyExchange:pubKey))))
+            extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: selectedCurve, keyExchange:pubKey))))
             
             //context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: pubKey)
-            let spec = TLSChangeCipherSpec()
-            spec.nextMessage = TLSEncryptedExtensions(context: context)
-            nextMessage = spec
         } else {
             let cert = TLSCertificate()
             cert.nextMessage = try? TLSServerKeyExchange(cipherSuite, pubKey: pubKey, serverHello: self)

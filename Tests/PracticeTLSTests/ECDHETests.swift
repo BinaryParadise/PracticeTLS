@@ -12,6 +12,7 @@ import CryptoSwift
 import SecurityRSA
 import CommonCrypto
 import CryptoKit
+import CocoaAsyncSocket
 @testable import PracticeTLS
 
 class ECDHETests: XCTestCase {
@@ -66,5 +67,101 @@ class ECDHETests: XCTestCase {
             }
         }
         XCTFail()
+    }
+    
+    // 使用封装类加解密
+    func testTLS1_3_Encrypt() throws {
+        let ecPriKey = "04B136511690172359CE3F791007FF923368810FDB7B9773C76B7E0D862409D929F0BB0C6AF2548F2976AC6368276B6906DF9A30820A317F3D179EFD3054471CBE37D57B41566174B41BE85D8CDE79871573CD475BB06E73054AC602EB3BB4566A".uint8Array
+        let ecPubKey = "04B136511690172359CE3F791007FF923368810FDB7B9773C76B7E0D862409D929F0BB0C6AF2548F2976AC6368276B6906DF9A30820A317F3D179EFD3054471CBE".uint8Array
+        let clientPubKey = [4] +  "49E017421BECF01F4AB57030996848751EB05EF2514DB0D2900EEE77006C479D07EBEFACE94935B4B58BF1E63D2C769ABCC90FF7849608DF1A9F7B2A714969F0".uint8Array
+        let sharedSecret = "14BF4D914418932424D3BCBDE670C011828D921A63736F1B180FDFD59522B807".uint8Array
+        
+        let derivedSecret = "126EAE97FB29828F6D464061FF29975DC7CDEA9D60B66E1D24F5153D23C95C56".uint8Array
+        let transcriptHash = "A42B3CCB8868841BD9753A7A7248691ADDDA828564B69EEE5657A2FA49F6405D".uint8Array
+        let handshakeSecret1 = "C5D53B7E43A62D76D881F45A8849EC2AF12DEBFE252B96E5F79C75D19B5F4EC3".uint8Array
+        let clientHandshakeSecret = "DF9A4E9350C695D02B597F78A43CF3A8390BC11F199021D937E251226C2100BD".uint8Array
+        let writeKey = "495BBF6EE33DB27471A84EE297575E9A".uint8Array
+        let writeIV = "18F08C40A31D55C80F1C75CB".uint8Array
+        let readKey = "85223681390CD1CCDBB05B96019276A3".uint8Array
+        let readIV = "B3BC1F1DB051CE24EB970E85".uint8Array
+        let currentIV = "18F08C40A31D55C80F1C75CB".uint8Array
+
+        let plainData = "080000020000".uint8Array
+        let additionalData = "1703030023".uint8Array
+        let cipherData = "A1A421FE6F31DCAC6A4652F07263DD1445B48D13E1696381BD281AA3AE3B915B54ED45".uint8Array
+//13E1696381BD281AA3AE3B915B54ED45
+        let conn = TLSConnection(GCDAsyncSocket())
+        let record = TLS1_3.TLSRecord(conn)
+        conn.record = record
+        record.setPendingSecurityParametersForCipherSuite(.TLS_AES_128_GCM_SHA256)
+        conn.keyExchange = .ecdha(try .init(ecPriKey, group: .secp256r1))
+        conn.preMasterKey = clientPubKey
+        
+        record.derivedSecret(transcriptHash)
+        
+        XCTAssertEqual(record.s.masterSecret, sharedSecret)
+                    
+        XCTAssertEqual(record.handshakeState.earlySecret, "33ad0a1c607ec03b09e6cd9893680ce210adf300aa1f2660e1b22e10f170f92a".uint8Array)
+        
+        XCTAssertEqual(record.handshakeState.handshakeSecret, handshakeSecret1)
+                        
+        XCTAssertEqual(record.handshakeState.clientHandshakeTrafficSecret, clientHandshakeSecret)
+        
+        XCTAssertEqual(writeKey, record.encryptor.p.key)
+        
+        XCTAssertEqual(writeIV, record.encryptor.p.iv)
+        
+        XCTAssertEqual(readKey, record.decryptor.p.key)
+        XCTAssertEqual(readIV, record.decryptor.p.iv)
+        
+        XCTAssertEqual(currentIV, record.encryptor.p.currentIV)
+        let encrypted = record.encrypt(plainData, contentType: .handshake(.encryptedExtensions))
+        XCTAssertEqual(encrypted, cipherData)
+        
+        record.decryptor.p = record.encryptor.p
+        record.decryptor.p.sequenceNumber = 0
+        let decrypted = try record.decrypt(encrypted!, contentType: .applicationData)
+        XCTAssertEqual(decrypted, plainData + [ContentType.handeshake.rawValue]+[UInt8](repeating: 0, count: 12))
+    }
+    
+    func testEncrypt() throws {
+        let cipherData = "ACC38FA6984DAF133D663AAC91D2E74B3DEB28".uint8Array
+        let additionalData = "1703030013".uint8Array
+        let curReadIV = "85393AF3C9C639D42F8FDCEE".uint8Array
+        
+        let readKey = "9A56B41C32A72EBF5FB3AF206015ABAC".uint8Array
+        let readIV = "85393AF3C9C639D42F8FDCEE".uint8Array
+        
+        var ep = TLS1_3.TLSRecord.Decryptor(p: TLS1_3.TLSRecord.EncryptionParameters(cipherSuiteDecriptor: TLSCipherSuiteDescriptionDictionary[.TLS_AES_128_GCM_SHA256]!, key: readKey, iv: readIV))
+
+        XCTAssertEqual(curReadIV, ep.p.currentIV)
+        
+        let decrypted = try ep.decrypt(cipherData, contentType: .applicationData)
+        
+        XCTAssertNotNil(decrypted)
+    }
+    
+    func testCalculatTranscript() throws {
+        
+        let TLSClientHello_512 = "010001fc03039f6df04ed0d403b8fc50f503025a7e35ddbe463271868a361201d760e1daaad52074b02c7ec8cd09a14910418034bd4f792e217ae6b44fb2e1d1a6c6a43d5315c30036fafa130113021303c02cc02bcca9c030c02fcca8c024c023c00ac009c028c027c014c013009d009c003d003c0035002fc008c012000a0100017dbaba000000170000ff01000100000a000c000a9a9a001d001700180019000b000201000010000e000c02683208687474702f312e31000500050100000000000d0018001604030804040105030203080508050501080606010201001200000033002b00299a9a000100001d002006c573519b6e765dfa74a2a47ecb586939d19f2921fa1f6a4ad1766cb5704771002d00020101002b000b0a7a7a03040303030203014a4a000100001500d2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".uint8Array
+        let TLSHelloRetryRequest_88 = "020000540303cf21ad74e59a6111be1d8c021e65b891c2a211167abb8c5e079e09e2c8a8339c2074b02c7ec8cd09a14910418034bd4f792e217ae6b44fb2e1d1a6c6a43d5315c3130100000c002b00020304003300020017".uint8Array
+        let TLSClientHello_512_re = "010001fc03039f6df04ed0d403b8fc50f503025a7e35ddbe463271868a361201d760e1daaad52074b02c7ec8cd09a14910418034bd4f792e217ae6b44fb2e1d1a6c6a43d5315c30036fafa130113021303c02cc02bcca9c030c02fcca8c024c023c00ac009c028c027c014c013009d009c003d003c0035002fc008c012000a0100017dbaba000000170000ff01000100000a000c000a9a9a001d001700180019000b000201000010000e000c02683208687474702f312e31000500050100000000000d0018001604030804040105030203080508050501080606010201001200000033004700450017004104fcba87b587e504c6d7f57ace25464eefee2a0e9bd700e0e94dbea09a95e9025c7c11b38685e64e160ee32d8281a1ea9114be4a626048f796b99f4235a8745ed8002d00020101002b000b0a7a7a03040303030203014a4a000100001500b60000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".uint8Array
+        let TLSServerHello_155 = "02000097030326f4a12e19a3527b78dd41cbdae96cbeacc8cd642406e5220c14768a53b2185f2074b02c7ec8cd09a14910418034bd4f792e217ae6b44fb2e1d1a6c6a43d5315c3130100004f0033004500170041042eb36455923dd1e135e0ec8b5692affd1358836e67824c58517f86dab3036cb73b83ed712b894f8a0a08a537396e496b175c1576f207facba85987148259017c002b00020304".uint8Array
+        
+        var handshakeData = TLSClientHello_512
+        let hashLength = HashAlgorithm.sha256.hashLength
+        let hashValue = HashAlgorithm.sha256.hashFunction(handshakeData)
+        
+        handshakeData = [TLSHandshakeType.messageHash.rawValue, 0, 0, UInt8(hashLength)] + hashValue
+        
+        handshakeData.append(contentsOf: TLSHelloRetryRequest_88)
+        handshakeData.append(contentsOf: TLSClientHello_512_re)
+        handshakeData.append(contentsOf: TLSServerHello_155)
+        
+        let transcriptHash = "F81DC62FBCB7B2BE19D161E6750741AF48A880ADE4152DC805E0CE8050D34E5D".uint8Array
+        
+        let newTranscriptHash = HashAlgorithm.sha256.hashFunction(handshakeData)
+        
+        XCTAssertEqual(transcriptHash, newTranscriptHash)
     }
 }

@@ -19,7 +19,7 @@ public class TLSConnection: NSObject {
     public var sock: GCDAsyncSocket
     var nextMessage: TLSMessage?
     var preMasterKey: [UInt8] = []
-    var handshakeMessages: [TLSMessage] = []
+    var handshakeMessages: [TLSHandshakeMessage] = []
     public var version: TLSVersion = .V1_2
     public var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
     var maximumRecordSize: Int = 2048
@@ -35,17 +35,30 @@ public class TLSConnection: NSObject {
     var keyExchange: TLSKeyExchange = .rsa
     private var _record: TLSRecordProtocol?
     var record: TLSRecordProtocol!
+    var negotiatedProtocolVersion: TLSVersion = .V1_2
     
     var transcriptHash: [UInt8] {
         var handshakeData: [UInt8] = []
         for msg in handshakeMessages {
+            
+            if negotiatedProtocolVersion == .V1_3 {
+                // TODO: Check for special construct when a HelloRetryRequest is included
+                // see section 4.4.1 "The Transcript Hash" in RFC 8446
+                // 踩坑: ⚠️⚠️⚠️
+                if msg is TLSHelloRetryRequest {
+                    let hashLength = record.s.hashAlgorithm.hashLength
+                    let hashValue = record.s.hashAlgorithm.hashFunction(handshakeData)
+                    
+                    handshakeData = [TLSHandshakeType.messageHash.rawValue, 0, 0, UInt8(hashLength)] + hashValue
+                    LogWarn("hashed => \(handshakeData.count)")
+                }
+            }
+            
             let d = msg.messageData()
-            //print("//\(msg.type) => \(d.count) \(d.toHexString())")
+            LogWarn("//\(msg)_\(d.count) = \(d.toHexString())")
             handshakeData.append(contentsOf: d)
-            // TODO: Check for special construct when a HelloRetryRequest is included
-            // see section 4.4.1 "The Transcript Hash" in RFC 8446
         }
-        return record.s.hashAlgorithm.hashFunction(handshakeData.dropLast(0))
+        return record.s.hashAlgorithm.hashFunction(handshakeData)
     }
     
     init(_ sock: GCDAsyncSocket) {
@@ -91,9 +104,10 @@ public class TLSConnection: NSObject {
         guard let msg = msg else { return }
         let data: [UInt8] = record.cipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
         nextMessage = msg.nextMessage
-        if msg is TLSHandshakeMessage {
-            handshakeMessages.append(msg)
+        if let handshake =  msg as? TLSHandshakeMessage {
+            handshakeMessages.append(handshake)
         }
+        
         sendData(data, tag: msg.rwtag)
     }
     
@@ -123,7 +137,10 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                 if stream.endOfStream {
                     lastPacket = true
                 }
-                do {
+                do {                    
+                    if let handshake =  msg as? TLSHandshakeMessage {
+                        handshakeMessages.append(handshake)
+                    }
                     try record.didReadMessage(msg, rawData: rawData)
                 } catch {
                     LogError("\(error)")

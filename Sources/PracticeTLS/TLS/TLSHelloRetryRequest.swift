@@ -8,11 +8,13 @@
 import Foundation
 import CryptoSwift
 
+let helloRetryRequestRandom: [UInt8] = [
+    0xCF, 0x21, 0xAD, 0x74, 0xE5, 0x9A, 0x61, 0x11, 0xBE, 0x1D, 0x8C, 0x02, 0x1E, 0x65, 0xB8, 0x91,
+    0xC2, 0xA2, 0x11, 0x16, 0x7A, 0xBB, 0x8C, 0x5E, 0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C
+]
+
 public class TLSHelloRetryRequest: TLSHandshakeMessage {
-    var random: [UInt8] = [
-        0xCF, 0x21, 0xAD, 0x74, 0xE5, 0x9A, 0x61, 0x11, 0xBE, 0x1D, 0x8C, 0x02, 0x1E, 0x65, 0xB8, 0x91,
-        0xC2, 0xA2, 0x11, 0x16, 0x7A, 0xBB, 0x8C, 0x5E, 0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C
-    ]
+    var random: [UInt8] = helloRetryRequestRandom
     var sessionID: [UInt8]?
     var cipherSuite: CipherSuite = .TLS_AES_128_GCM_SHA256
     var compressionMethod: CompressionMethod = .null
@@ -23,8 +25,12 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
 
         sessionID = client.sessionID
         
+        selectedCurve = .secp256r1
         extensions.append(TLSSupportedVersionsExtension())
-        extensions.append(TLSKeyShareExtension(keyShare: .helloRetryRequest(NamedGroup.secp256r1)))
+        extensions.append(TLSKeyShareExtension(keyShare: .helloRetryRequest(selectedCurve)))
+        
+        context.record = TLS1_3.TLSRecord(context)
+        context.record.setPendingSecurityParametersForCipherSuite(cipherSuite)
     }
     
     public override init?(stream: DataStream, context: TLSConnection) {

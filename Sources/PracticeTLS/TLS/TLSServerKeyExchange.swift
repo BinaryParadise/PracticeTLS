@@ -14,7 +14,7 @@ enum CurveType: UInt8 {
 
 class ECDHServerParams: Streamable {
     var curveType: CurveType = .named_curve
-    var namedCurve: NamedGroup = .x25519
+    var namedCurve: NamedGroup = selectedCurve
     var pubKey: [UInt8] = []
     
     init(_ pubKey: [UInt8]) throws {

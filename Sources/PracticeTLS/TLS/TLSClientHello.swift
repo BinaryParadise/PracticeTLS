@@ -14,7 +14,7 @@ public class TLSClientHello: TLSHandshakeMessage {
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = []
     var keyExchange: [UInt8] {
-        return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: .x25519)?.keyExchange ?? []
+        return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: selectedCurve)?.keyExchange ?? []
     }
 
     public override init?(stream: DataStream, context: TLSConnection) {
@@ -53,7 +53,7 @@ public class TLSClientHello: TLSHandshakeMessage {
             } else {                
                 nextMessage = TLSServerHello(client: self, context: context)
             }
-        } else {
+        } else {            
             nextMessage = TLSServerHello(client: self, context: context)
         }
         context.nextMessage = nextMessage

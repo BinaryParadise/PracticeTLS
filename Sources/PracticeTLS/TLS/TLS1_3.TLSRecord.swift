@@ -7,6 +7,7 @@
 
 import Foundation
 import CryptoKit
+import CryptoSwift
 
 extension TLS1_3 {
     static let ivLabel  = [UInt8]("iv".utf8)
@@ -21,19 +22,18 @@ extension TLS1_3 {
         
         required init(_ context: TLSConnection) {
             self.context = context
-            handshakeState = TLS1_3.HandshakeState()
             s = TLSSecurityParameters(context.cipherSuite)
+            handshakeState = TLS1_3.HandshakeState(s.hashAlgorithm)
         }
         
-        func derivedSecret() {
-            handshakeState.deriveEarlySecret()
-            
+        func derivedSecret(_ transcriptHash: [UInt8]?) {
             switch context.keyExchange {
             case .rsa:
                 break
             case .ecdha(let encryptor):
                 let shareSecret = try? encryptor.keyExchange(context.preMasterKey)
-                handshakeState.deriveHandshakeSecret(with: shareSecret!, transcriptHash: context.transcriptHash)
+                s.masterSecret = shareSecret!
+                handshakeState.deriveHandshakeSecret(with: shareSecret!, transcriptHash: transcriptHash ?? context.transcriptHash)
                 changeKeys(with: handshakeState.clientHandshakeTrafficSecret!, isRead: true)
                 changeKeys(with: handshakeState.serverHandshakeTrafficSecret!, isRead: false)
                 break
@@ -50,7 +50,6 @@ extension TLS1_3 {
                     context.sendMessage(msg: msg)
                 } else {
                     if let handshakeMsg = msg as? TLSHandshakeMessage {
-                        context.handshakeMessages.append(handshakeMsg)
                         switch handshakeType {
                         case .finished:
                             handshaked = true
@@ -98,10 +97,18 @@ extension TLS1_3 {
                     context.sendMessage(msg: msg)
                 }
             case .handshake(let handshakeType):
+                if handshakeType == .serverHello {
+                    derivedSecret(context.transcriptHash)
+                    let spec = TLSChangeCipherSpec()
+                    spec.nextMessage = TLSEncryptedExtensions(context: context)
+                    context.nextMessage = spec
+                }
                 if let msg = context.nextMessage {
                     context.sendMessage(msg: msg)
                 } else {
                     switch handshakeType {
+                    case .helloRetryRequest:
+                        return .handshake(.clientHello)
                     case .finished:
                         return .changeCipherSpec
                     default:
@@ -140,16 +147,25 @@ extension TLS1_3 {
                 
                 return iv
             }
-                        
-            mutating func encrypt(_ data: [UInt8], contentType: TLSMessageType, authData: [UInt8], iv: [UInt8]? = nil) -> [UInt8]? {
+        }
+        
+        struct Encryptor {
+            var p: EncryptionParameters
+            
+            mutating func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]? = nil) -> [UInt8]? {
                 do {
+                    let plainText = data + [contentType.rawValue] + [UInt8](repeating: 0, count: 12)
+                    var authData: [UInt8] = []
+                    authData.append(TLSMessageType.applicationData.rawValue)
+                    authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
+                    authData.append(contentsOf: UInt16(plainText.count + p.cipherSuiteDecriptor.authTagSize).bytes)
                     //启用 CryptoKit
-                    if cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
-                        //TODO:
-                        return nil
+                    if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
+                        let box = try ChaChaPoly.seal(plainText, using: .init(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
+                        return (box.ciphertext + box.tag).bytes
                     } else {
-                        let box = try CryptoKit.AES.GCM.seal(data, using: SymmetricKey(data: key), nonce: .init(data: currentIV), authenticating: authData)
-                        sequenceNumber += 1
+                        let box = try CryptoKit.AES.GCM.seal(plainText, using: SymmetricKey(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
+                        p.sequenceNumber += 1
                         return box.ciphertext.bytes + box.tag.bytes
                     }
                 } catch {
@@ -157,17 +173,30 @@ extension TLS1_3 {
                 }
                 return nil
             }
+        }
+        
+        struct Decryptor {
+            var p: EncryptionParameters
             
-            mutating func decrypt(_ encryptedData: [UInt8], authData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
+            mutating func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
                 do {
+                    
                     //启用 CryptoKit
-                    if cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
-                        let decrypted = try ChaChaPoly.open(.init(combined: currentIV+encryptedData), using: SymmetricKey(data: key), authenticating: authData).bytes
-                        sequenceNumber += 1
+                    if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
+                        let decrypted = try ChaChaPoly.open(.init(combined: p.currentIV+encryptedData), using: SymmetricKey(data: p.key), authenticating: []).bytes
+                        p.sequenceNumber += 1
                         return decrypted
                     } else {
-                        let message = try CryptoKit.AES.GCM.open(.init(combined: currentIV+encryptedData), using: SymmetricKey(data: key), authenticating: authData).bytes
-                        sequenceNumber += 1
+                        let cipherData = Array(encryptedData[0..<encryptedData.count - p.cipherSuiteDecriptor.authTagSize])
+                        let authTag = Array(encryptedData[(encryptedData.count - p.cipherSuiteDecriptor.authTagSize)...])
+                        
+                        var authData: [UInt8] = []
+                        authData.append(TLSMessageType.applicationData.rawValue)
+                        authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
+                        authData.append(contentsOf: UInt16(encryptedData.count).bytes)
+                    
+                        let message = try CryptoKit.AES.GCM.open(.init(combined: p.currentIV + encryptedData), using: SymmetricKey(data: p.key), authenticating: authData).bytes
+                        p.sequenceNumber += 1
                         return message
                     }
                 } catch {
@@ -178,30 +207,32 @@ extension TLS1_3 {
             }
         }
         
-        var readEncryptionParameters: EncryptionParameters!
-        var writeEncryptionParameters: EncryptionParameters!
+        var encryptor: Encryptor!
+        var decryptor: Decryptor!
+                
+        /*
+         数据结构
+         struct {
+                   opaque content[TLSPlaintext.length];
+                   ContentType type;
+                   uint8 zeros[length_of_padding];
+               } TLSInnerPlaintext;
+
+        struct {
+                   ContentType opaque_type = application_data; /* 23 */
+                   ProtocolVersion legacy_record_version = 0x0303; /* TLS v1.2 */
+                   uint16 length;
+                   opaque encrypted_record[TLSCiphertext.length];
+               } TLSCiphertext;
+         
+         */
         
         func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]? = nil) -> [UInt8]? {
-            let paddingLength = 12
-            let padding = [UInt8](repeating: 0, count: paddingLength)
-            let plainTextRecordData = data + [contentType.rawValue] + padding
-
-            var authDataBuffer: [UInt8] = []
-            authDataBuffer.append(contentType.rawValue)
-            authDataBuffer.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
-            authDataBuffer.append(contentsOf: UInt16(plainTextRecordData.count + writeEncryptionParameters.cipherSuiteDecriptor.authTagSize).bytes)
-            return writeEncryptionParameters.encrypt(plainTextRecordData, contentType: contentType, authData: authDataBuffer, iv: iv)
+            return encryptor.encrypt(data, contentType: contentType, iv: iv)
         }
         
         func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
-            let cipherText = [UInt8](encryptedData[0..<(encryptedData.count - readEncryptionParameters.cipherSuiteDecriptor.authTagSize)])
-            let authTag    = [UInt8](encryptedData[(encryptedData.count - readEncryptionParameters.cipherSuiteDecriptor.authTagSize)..<encryptedData.count])
-            
-            var authDataBuffer: [UInt8] = []
-            authDataBuffer.append(contentType.rawValue)
-            authDataBuffer.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
-            authDataBuffer.append(contentsOf: UInt16((cipherText + authTag).count).bytes)
-            return try readEncryptionParameters.decrypt(cipherText, authData: authDataBuffer, contentType: contentType)
+            return try decryptor.decrypt(encryptedData, contentType: contentType)
         }
         
         func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8]) {
@@ -222,19 +253,19 @@ extension TLS1_3 {
             let iv  = handshakeState.HKDF_Expand_Label(secret: trafficSecret, label: ivLabel, hashValue: [], outputLength: ivSize)
             
             if isRead {
-                readEncryptionParameters = EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv)
+                decryptor = .init(p: EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv))
             } else {
-                writeEncryptionParameters = EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv)
+                encryptor = .init(p: EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv))
             }
         }
         
         func setPendingSecurityParametersForCipherSuite(_ cipherSuite: CipherSuite) {
             do {
-                try context.keyExchange = .ecdha(.init())
+                context.cipherSuite = cipherSuite
+                try context.keyExchange = .ecdha(.init(nil, group: selectedCurve))
             } catch {
                 LogError("\(error)")
             }
         }
-        
     }
 }

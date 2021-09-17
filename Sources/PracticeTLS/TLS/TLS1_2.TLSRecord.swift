@@ -25,7 +25,7 @@ extension TLS1_2 {
             s = TLSSecurityParameters(context.cipherSuite)
         }
         
-        func derivedSecret() {
+        func derivedSecret(_ transcriptHash: [UInt8]?) {
             
         }
                         
@@ -65,7 +65,6 @@ extension TLS1_2 {
                         s.clientVerifyData = try context.decryptAndVerifyMAC(contentType: handshake.type, data: handshake.messageData()) ?? []
                         context.sock.writeData(data: TLSChangeCipherSpec().dataWithBytes(), tag: .changeCipherSpec)
                     default:
-                        context.handshakeMessages.append(handshake)
                         context.sendMessage(msg: handshake.nextMessage)
                     }
                 }

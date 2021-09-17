@@ -24,7 +24,7 @@ public class TLSMessage: Streamable {
         case .changeCipherSpec:
             return .changeCipherSpec
         case .handshake(let handshakeType):
-            return .handshake(handshakeType)
+            return (self is TLSHelloRetryRequest) ? .handshake(.helloRetryRequest) : .handshake(handshakeType)
         case .alert:
             return .alert
         case .applicationData:
