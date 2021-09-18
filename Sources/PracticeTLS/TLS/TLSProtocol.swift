@@ -149,11 +149,14 @@ func TLSExtensionsfromData(_ data: [UInt8], messageType: TLSMessageExtensionType
             if let type = TLSExtensionType(rawValue: b) {
                 switch type {
                 case .supported_versions:
-                    let vers = TLSSupportedVersionsExtension(stream: stream)!
-                    //启用TLS 1.3
-                    #if false
-                    exts.append(vers)
+                    var vers = TLSSupportedVersionsExtension(stream: stream)!
+                    #if true
+                    // 禁用TLS 1.3
+                    vers.versions.removeAll { v in
+                        v == .V1_3
+                    }
                     #endif
+                    exts.append(vers)
                 case .key_share:
                     exts.append(TLSKeyShareExtension(stream: stream, messageType: messageType)!)
                 default:
@@ -172,8 +175,8 @@ struct TLSSupportedVersionsExtension: Streamable, TLSExtension {
     var length: UInt16
     var versions: [TLSVersion] = []
     
-    init() {
-        versions.append(.V1_3)
+    init(_ version: TLSVersion) {
+        versions.append(version)
         length = 2
     }
     

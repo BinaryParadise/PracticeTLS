@@ -47,7 +47,7 @@ public class TLSClientHello: TLSHandshakeMessage {
             extensions = TLSExtensionsfromData(bytes, messageType: .clientHello)
         }
         
-        if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) != nil {
+        if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) ?? false {
             if keyExchange.count == 0 {
                 nextMessage = TLSHelloRetryRequest(client: self, context: context)                
             } else {                

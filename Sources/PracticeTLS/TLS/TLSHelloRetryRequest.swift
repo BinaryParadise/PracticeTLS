@@ -26,7 +26,7 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
         sessionID = client.sessionID
         
         selectedCurve = .secp256r1
-        extensions.append(TLSSupportedVersionsExtension())
+        extensions.append(TLSSupportedVersionsExtension(.V1_3))
         extensions.append(TLSKeyShareExtension(keyShare: .helloRetryRequest(selectedCurve)))
         
         context.record = TLS1_3.TLSRecord(context)

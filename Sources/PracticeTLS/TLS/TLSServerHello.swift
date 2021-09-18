@@ -27,9 +27,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     init(client: TLSClientHello, context: TLSConnection) {
         super.init(.serverHello)
         self.client = client
-            
-        sessionID = client.sessionID ?? []
-        
+    
         contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength
         bodyLength = Int(contentLength - 4)
         
@@ -42,6 +40,7 @@ public class TLSServerHello: TLSHandshakeMessage {
         
         //确定版本、加密套件
         if (client.extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) ?? false {
+            sessionID = client.sessionID ?? []
             cipherSuite = .TLS_AES_128_GCM_SHA256
             context.negotiatedProtocolVersion = .V1_3
             context.record = TLS1_3.TLSRecord(context)
@@ -74,7 +73,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     
     private func serverKeyExchange(_ pubKey: [UInt8], context: TLSConnection) {
         if context.negotiatedProtocolVersion == .V1_3 {
-            extensions.append(TLSSupportedVersionsExtension())
+            extensions.append(TLSSupportedVersionsExtension(context.negotiatedProtocolVersion))
             extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: selectedCurve, keyExchange:pubKey))))
             
             //context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: pubKey)
