@@ -151,7 +151,7 @@ func TLSExtensionsfromData(_ data: [UInt8], messageType: TLSMessageExtensionType
                 case .supported_versions:
                     let vers = TLSSupportedVersionsExtension(stream: stream)!
                     //启用TLS 1.3
-                    #if true
+                    #if false
                     exts.append(vers)
                     #endif
                 case .key_share:
@@ -401,15 +401,22 @@ extension TLS1_3 {
     }
 }
 
-protocol TLSRecordProtocol {
-    var cipherChanged: Bool { get set}
-    var s: TLSSecurityParameters! { get set}
+protocol Encryptable {
+    func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]?) -> [UInt8]?
+}
+
+protocol Decryptable {
+    func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]?
+}
+
+protocol TLSRecordProtocol: Encryptable, Decryptable {
+    var clientCipherChanged: Bool { get set }
+    var serverCipherChanged: Bool { get set }
+    var s: TLSSecurityParameters! { get set }
     init(_ context: TLSConnection)
     func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws
     func didWriteMessage(_ tag: RWTags) -> RWTags?
     func derivedSecret(_ transcriptHash: [UInt8]?)
     func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8])
-    func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]?) -> [UInt8]?
-    func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]?
     func setPendingSecurityParametersForCipherSuite(_ cipherSuite : CipherSuite)
 }

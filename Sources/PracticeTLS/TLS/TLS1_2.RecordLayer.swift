@@ -12,10 +12,11 @@ import CryptoKit
 enum TLS1_2 {}
 
 extension TLS1_2 {
-    class TLSRecord: TLSRecordProtocol {
+    class RecordLayer: TLSRecordProtocol {
         var context: TLSConnection
         var handshaked: Bool = false
-        var cipherChanged: Bool = false
+        var clientCipherChanged: Bool = false
+        var serverCipherChanged: Bool = false
         var s: TLSSecurityParameters!
         var readEncryptionParameters: EncryptionParameters!
         var writeEncryptionParameters: EncryptionParameters!
@@ -46,7 +47,7 @@ extension TLS1_2 {
             s.authTagSize = cipherSuiteDescriptor.authTagSize
             s.preMasterSecret = context.preMasterKey
             do {
-                context.keyExchange = try cipherSuiteDescriptor.keyExchangeAlgorithm == .rsa ? .rsa : .ecdha(.init())
+                context.keyExchange = try cipherSuiteDescriptor.keyExchangeAlgorithm == .rsa ? .rsa : .ecdha(.init(nil, group: selectedCurve))
             } catch {
                 LogError("\(error)")
             }
@@ -56,7 +57,7 @@ extension TLS1_2 {
             LogDebug("\(msg.type) -> \(rawData.count)")
             switch msg.type {
             case .changeCipherSpec:
-                cipherChanged = true
+                clientCipherChanged = true
             case .handshake(_):
                 if let handshake = msg as? TLSHandshakeMessage {
                     switch handshake.handshakeType {
@@ -78,8 +79,12 @@ extension TLS1_2 {
                     alert = TLSAlert(stream: rawData.stream, context: context)
                 }
                 if let alert = alert {
-                    if alert.alertType == .closeNotify {
-                        context.sock.disconnectAfterReadingAndWriting()
+                    if alert.level == .fatal {
+                        context.disconnect()
+                    } else {
+                        if alert.alertType == .closeNotify {
+                            context.sock.disconnectAfterReadingAndWriting()
+                        }
                     }
                     LogError("alert: \(alert.level) -> \(alert.alertType)")
                 } else {
@@ -104,6 +109,7 @@ extension TLS1_2 {
             
             switch tag {
             case .changeCipherSpec:
+                serverCipherChanged = true
                 let clientFinishedMsg = context.verifyDataForFinishedMessage(isClient: true)
                 //踩坑：发送给客户端的finish也需要包含在摘要的握手消息中⚠️⚠️⚠️⚠️⚠️
                 context.handshakeMessages.append(clientFinishedMsg)
@@ -171,7 +177,7 @@ extension TLS1_2 {
             writeEncryptionParameters = EncryptionParameters(hmac: s.hashAlgorithm.macAlgorithm, MACKey: serverWriteMACKey, bulkCipherAlgorithm: s.bulkCipherAlgorithm, blockCipherMode: s.blockCipherMode, bulkKey: serverWriteKey, blockLength: s.blockLength, fixedIVLength: s.fixedIVLength, recordIVLength: s.recordIVLength, fixedIV: serverWriteIV, authTagSize: s.authTagSize)
         }
         
-        class EncryptionParameters {
+        class EncryptionParameters: Encryptable, Decryptable {
             var hmac : MACAlgorithm
             var bulkCipherAlgorithm : CipherAlgorithm
             var cipherType : CipherType

@@ -16,7 +16,8 @@ extension TLS1_3 {
     class TLSRecord: TLSRecordProtocol {
         var context: TLSConnection
         var handshaked: Bool = false
-        var cipherChanged: Bool = false
+        var clientCipherChanged: Bool = false
+        var serverCipherChanged: Bool = false
         var handshakeState: HandshakeState
         var s: TLSSecurityParameters!
         
@@ -44,12 +45,12 @@ extension TLS1_3 {
             LogDebug("\(msg.type) -> \(rawData.count)")
             switch msg.type {
             case .changeCipherSpec:
-                cipherChanged = true
+                clientCipherChanged = true
             case .handshake(let handshakeType):
                 if let msg = context.nextMessage {
                     context.sendMessage(msg: msg)
                 } else {
-                    if let handshakeMsg = msg as? TLSHandshakeMessage {
+                    if msg is TLSHandshakeMessage {
                         switch handshakeType {
                         case .finished:
                             handshaked = true
@@ -60,7 +61,7 @@ extension TLS1_3 {
                 }
             case .alert:
                 var alert: TLSAlert?
-                if cipherChanged {
+                if clientCipherChanged {
                     if let d = try decrypt([UInt8](rawData[5...]), contentType: .alert) {
                         alert = TLSAlert(stream: ([UInt8](rawData[0...4]) + d).stream, context: context)
                     }
@@ -92,7 +93,7 @@ extension TLS1_3 {
         func didWriteMessage(_ tag: RWTags) -> RWTags? {
             switch tag {
             case .changeCipherSpec:
-                cipherChanged = true
+                serverCipherChanged = true
                 if let msg = context.nextMessage {
                     context.sendMessage(msg: msg)
                 }

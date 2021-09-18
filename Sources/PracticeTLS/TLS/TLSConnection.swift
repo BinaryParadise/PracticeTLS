@@ -102,7 +102,7 @@ public class TLSConnection: NSObject {
         
     func sendMessage(msg: TLSMessage?) {
         guard let msg = msg else { return }
-        let data: [UInt8] = record.cipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
+        let data: [UInt8] = record.serverCipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
         nextMessage = msg.nextMessage
         if let handshake =  msg as? TLSHandshakeMessage {
             handshakeMessages.append(handshake)
@@ -139,7 +139,9 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                 }
                 do {                    
                     if let handshake =  msg as? TLSHandshakeMessage {
-                        handshakeMessages.append(handshake)
+                        if !record.clientCipherChanged {
+                            handshakeMessages.append(handshake)
+                        }
                     }
                     try record.didReadMessage(msg, rawData: rawData)
                 } catch {

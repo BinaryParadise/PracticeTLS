@@ -47,11 +47,11 @@ public class TLSServerHello: TLSHandshakeMessage {
             context.record = TLS1_3.TLSRecord(context)
             context.preMasterKey = client.keyExchange
         } else {
-            let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+            let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
             if client.cipherSuites.contains(expectedCipher) {
                 cipherSuite = expectedCipher
             }
-            context.record = TLS1_2.TLSRecord(context)
+            context.record = TLS1_2.RecordLayer(context)
         }
                         
         //踩坑：这里要完整32字节⚠️⚠️⚠️⚠️⚠️
