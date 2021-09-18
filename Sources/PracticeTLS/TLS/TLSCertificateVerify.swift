@@ -38,7 +38,7 @@ class TLSCertificateVerify: TLSHandshakeMessage {
         self.algorithm = algorithm
         self.signature = signature
         
-        super.init(.certificateVerify)
+        super.init(.handshake(.certificateVerify))
     }
     
     override func dataWithBytes() -> [UInt8] {

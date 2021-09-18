@@ -9,19 +9,11 @@ import Foundation
 import SecurityRSA
 
 class TLSEncryptedExtensions: TLSHandshakeMessage {
+    
     init(context: TLSConnection) {
-        super.init(.encryptedExtensions)
-        
-        let cert = TLSCertificate()
-                
-//        var proofData = [UInt8](repeating: 0x20, count: 64)
-//        proofData += [UInt8]("TLS 1.3, server CertificateVerify".utf8)
-//        proofData += [0]
-//        proofData += context.transcriptHash
-//        let signed = try? RSAEncryptor().sign(data: proofData)
-//        cert.nextMessage = TLSCertificateVerify(algorithm: .rsa_pkcs1_sha256, signature: signed ?? [])
-        cert.nextMessage = context.verifyDataForFinishedMessage(isClient: false)
-        nextMessage = cert
+        super.init(.handshake(.encryptedExtensions), context: context)
+        context.record.serverCipherChanged = true
+        nextMessage = TLSCertificate(context)
     }
     
     override func dataWithBytes() -> [UInt8] {

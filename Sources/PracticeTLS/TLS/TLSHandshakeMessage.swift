@@ -19,8 +19,8 @@ public class TLSHandshakeMessage: TLSMessage {
     var clientVersion: TLSVersion = .V1_2
     var encrypted: [UInt8] = []
     
-    init(_ type: TLSHandshakeType = .clientHello) {
-        super.init(.handshake(type))
+    override init(_ type: TLSMessageType = .handshake(.clientHello), context: TLSConnection? = nil) {
+        super.init(type)
     }
     
     public override init?(stream: DataStream, context: TLSConnection) {

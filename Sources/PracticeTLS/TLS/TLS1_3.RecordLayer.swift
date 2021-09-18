@@ -8,12 +8,13 @@
 import Foundation
 import CryptoKit
 import CryptoSwift
+import SecurityRSA
 
 extension TLS1_3 {
     static let ivLabel  = [UInt8]("iv".utf8)
     static let keyLabel = [UInt8]("key".utf8)
     
-    class TLSRecord: TLSRecordProtocol {
+    class RecordLayer: TLSRecordProtocol, CustomStringConvertible {
         var context: TLSConnection
         var handshaked: Bool = false
         var clientCipherChanged: Bool = false
@@ -32,6 +33,7 @@ extension TLS1_3 {
             case .rsa:
                 break
             case .ecdha(let encryptor):
+                s.preMasterSecret = context.preMasterKey
                 let shareSecret = try? encryptor.keyExchange(context.preMasterKey)
                 s.masterSecret = shareSecret!
                 handshakeState.deriveHandshakeSecret(with: shareSecret!, transcriptHash: transcriptHash ?? context.transcriptHash)
@@ -86,23 +88,20 @@ extension TLS1_3 {
                             try didReadMessage(newMsg, rawData: decryptedData)
                         }
                     }
+                } else {
+                    LogInfo(description)
                 }
             }
         }
         
         func didWriteMessage(_ tag: RWTags) -> RWTags? {
             switch tag {
-            case .changeCipherSpec:
-                serverCipherChanged = true
-                if let msg = context.nextMessage {
-                    context.sendMessage(msg: msg)
-                }
             case .handshake(let handshakeType):
                 if handshakeType == .serverHello {
                     derivedSecret(context.transcriptHash)
-                    let spec = TLSChangeCipherSpec()
-                    spec.nextMessage = TLSEncryptedExtensions(context: context)
-                    context.nextMessage = spec
+                    context.nextMessage = TLSEncryptedExtensions(context: context)
+                } else if handshakeType == .encryptedExtensions {
+                    return .applicationData
                 }
                 if let msg = context.nextMessage {
                     context.sendMessage(msg: msg)
@@ -111,7 +110,7 @@ extension TLS1_3 {
                     case .helloRetryRequest:
                         return .handshake(.clientHello)
                     case .finished:
-                        return .changeCipherSpec
+                        return .applicationData
                     default:
                         break
                     }
@@ -127,6 +126,33 @@ extension TLS1_3 {
                 break
             }
             return nil
+        }
+        
+        func sendCertificateVerify() {
+            if context.negotiatedProtocolVersion == .V1_3 {
+                var signer = RSAEncryptor()
+                
+                var proofData = [UInt8](repeating: 0x20, count: 64)
+                proofData += TLS1_3.serverCertificateVerifyContext
+                proofData += [0]
+                proofData += context.transcriptHash
+                
+                do {
+                    let signature = try signer.sign(data: proofData)
+                    context.nextMessage = TLSCertificateVerify(algorithm: .rsa_pkcs1_sha256, signature: signature)
+                } catch {
+                    LogError("\(error)")
+                }
+            }
+        }
+        
+        func sendFinished() {
+            let finishedKey = handshakeState.deriveFinishedKey(secret: handshakeState.serverHandshakeTrafficSecret!)
+            
+            let transcriptHash = context.transcriptHash
+            
+            let finishedData = handshakeState.hashAlgorithm.hmac(finishedKey, transcriptHash)
+            context.nextMessage = TLSFinished(finishedData)
         }
         
         struct EncryptionParameters {
@@ -266,6 +292,25 @@ extension TLS1_3 {
                 try context.keyExchange = .ecdha(.init(nil, group: selectedCurve))
             } catch {
                 LogError("\(error)")
+            }
+        }
+        
+        var description: String {
+            switch context.keyExchange {
+            case .rsa:
+                return "Unsupport"
+            case .ecdha(let ecdhEn):
+                return """
+                
+                let priKey = "\(ecdhEn.privateKeyData.toHexString())".uint8Array
+                let serverPubKey = "\(ecdhEn.exportPublickKey().toHexString())".uint8Array
+                let clientPubKey = "\(s.preMasterSecret.toHexString())".uint8Array
+                let clientRandom = "\(s.clientRandom.toHexString())".uint8Array
+                let serverRandom = "\(s.serverRandom.toHexString())".uint8Array
+                let transcriptHash = "\(handshakeState.handshakeTranscriptionHash.toHexString())"
+                let clientHandshakeTrafficSecret = "\(handshakeState.clientHandshakeTrafficSecret!.toHexString())".uint8Array
+                let serverHandshakeTrafficSecret = "\(handshakeState.serverHandshakeTrafficSecret!.toHexString())".uint8Array
+                """
             }
         }
     }

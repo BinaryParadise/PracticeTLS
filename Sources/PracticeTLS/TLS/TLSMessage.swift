@@ -32,8 +32,11 @@ public class TLSMessage: Streamable {
         }
     }
     
-    init(_ type : TLSMessageType) {
+    var context: TLSConnection?
+    
+    init(_ type : TLSMessageType = .handshake(.clientHello), context: TLSConnection? = nil) {
         self.type = type
+        self.context = context
     }
     
     public init?(stream: DataStream, context: TLSConnection) {

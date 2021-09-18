@@ -150,7 +150,7 @@ func TLSExtensionsfromData(_ data: [UInt8], messageType: TLSMessageExtensionType
                 switch type {
                 case .supported_versions:
                     var vers = TLSSupportedVersionsExtension(stream: stream)!
-                    #if true
+                    #if false
                     // 禁用TLS 1.3
                     vers.versions.removeAll { v in
                         v == .V1_3
@@ -343,6 +343,7 @@ extension TLS1_3 {
         var resumptionBinderSecret: [UInt8]?
         var selectedIdentity: UInt16?
         var hashAlgorithm: HashAlgorithm
+        var handshakeTranscriptionHash: [UInt8] = []
         
         init(_ hashAlgorithm: HashAlgorithm = .sha256) {
             self.hashAlgorithm = hashAlgorithm
@@ -350,14 +351,12 @@ extension TLS1_3 {
         }
                                 
         func deriveHandshakeSecret(with sharedSecret: [UInt8], transcriptHash: [UInt8]) {
+            handshakeTranscriptionHash = transcriptHash
             let derivedSecret = Derive_Secret(secret: earlySecret!, label: derivedLabel, transcriptHash: hashAlgorithm.hashFunction([]))
             handshakeSecret = HKDF_Extract(salt: derivedSecret, inputKeyingMaterial: sharedSecret)
                         
-            let clientHandshakeSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.clientHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)
-            let serverHandshakeSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.serverHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)
-            
-            clientHandshakeTrafficSecret = clientHandshakeSecret
-            serverHandshakeTrafficSecret = serverHandshakeSecret
+            clientHandshakeTrafficSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.clientHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)
+            serverHandshakeTrafficSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.serverHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)            
         }
         
         // TLS 1.3 uses HKDF to derive its key material
@@ -384,11 +383,13 @@ extension TLS1_3 {
         }
         
         func HKDF_Expand_Label(secret: [UInt8], label: [UInt8], hashValue: [UInt8], outputLength: Int) -> [UInt8] {
-            
-            let lbl = tls1_3_prefix + label
-            var hkdfLabel = [UInt8((outputLength >> 8) & 0xff), UInt8(outputLength & 0xff)]
-            hkdfLabel += [UInt8(label.count)] + lbl
-            hkdfLabel += [UInt8(hashValue.count)] + hashValue
+            let newLabel = tls1_3_prefix + label
+            var hkdfLabel: [UInt8] = []
+            hkdfLabel.append(contentsOf: UInt16(outputLength).bytes)
+            hkdfLabel.append(UInt8(newLabel.count))
+            hkdfLabel.append(contentsOf: newLabel)
+            hkdfLabel.append(UInt8(hashValue.count))
+            hkdfLabel.append(contentsOf: hashValue)
             
             return HKDF_Expand(prk: secret, info: hkdfLabel, outputLength: outputLength)
         }
@@ -400,6 +401,13 @@ extension TLS1_3 {
         private func deriveEarlySecret() {
             let zeroes = [UInt8](repeating: 0, count: hashAlgorithm.hashLength)
             earlySecret = HKDF_Extract(salt: zeroes, inputKeyingMaterial: preSharedKey ?? zeroes)
+        }
+        
+        func deriveFinishedKey(secret: [UInt8]) -> [UInt8] {
+            let hashLength = hashAlgorithm.hashLength
+            let finishedKey = HKDF_Expand_Label(secret: secret, label: finishedLabel, hashValue: [], outputLength: hashLength)
+            
+            return finishedKey
         }
     }
 }

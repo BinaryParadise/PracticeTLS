@@ -21,7 +21,7 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
     var extensions: [TLSExtension] = []
     
     init(client: TLSClientHello, context: TLSConnection) {
-        super.init(.serverHello)
+        super.init(.handshake(.serverHello))
 
         sessionID = client.sessionID
         
@@ -29,7 +29,7 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
         extensions.append(TLSSupportedVersionsExtension(.V1_3))
         extensions.append(TLSKeyShareExtension(keyShare: .helloRetryRequest(selectedCurve)))
         
-        context.record = TLS1_3.TLSRecord(context)
+        context.record = TLS1_3.RecordLayer(context)
         context.record.setPendingSecurityParametersForCipherSuite(cipherSuite)
     }
     

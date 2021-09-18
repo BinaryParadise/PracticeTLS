@@ -25,7 +25,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     var client: TLSClientHello?
 
     init(client: TLSClientHello, context: TLSConnection) {
-        super.init(.serverHello)
+        super.init(.handshake(.serverHello))
         self.client = client
     
         contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength
@@ -43,7 +43,7 @@ public class TLSServerHello: TLSHandshakeMessage {
             sessionID = client.sessionID ?? []
             cipherSuite = .TLS_AES_128_GCM_SHA256
             context.negotiatedProtocolVersion = .V1_3
-            context.record = TLS1_3.TLSRecord(context)
+            context.record = TLS1_3.RecordLayer(context)
             context.preMasterKey = client.keyExchange
         } else {
             let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
@@ -75,8 +75,6 @@ public class TLSServerHello: TLSHandshakeMessage {
         if context.negotiatedProtocolVersion == .V1_3 {
             extensions.append(TLSSupportedVersionsExtension(context.negotiatedProtocolVersion))
             extensions.append(TLSKeyShareExtension(keyShare: .serverHello(KeyShareEntry(group: selectedCurve, keyExchange:pubKey))))
-            
-            //context.securityParameters.keyExchange(algorithm: .ecdhe, preMasterSecret: pubKey)
         } else {
             let cert = TLSCertificate()
             cert.nextMessage = try? TLSServerKeyExchange(cipherSuite, pubKey: pubKey, serverHello: self)

@@ -11,7 +11,7 @@ class TLSFinished: TLSHandshakeMessage {
     var verifyData: [UInt8]
     init(_ verifyData: [UInt8]) {
         self.verifyData = verifyData
-        super.init(.finished)
+        super.init(.handshake(.finished))
     }
     
     override func dataWithBytes() -> [UInt8] {

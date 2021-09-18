@@ -55,7 +55,7 @@ public class TLSConnection: NSObject {
             }
             
             let d = msg.messageData()
-            LogWarn("//\(msg)_\(d.count) = \(d.toHexString())")
+            LogWarn("//\(msg)_\(d.count)")
             handshakeData.append(contentsOf: d)
         }
         return record.s.hashAlgorithm.hashFunction(handshakeData)

@@ -116,7 +116,7 @@ extension TLS1_2 {
                 
                 s.serverVerifyData = context.verifyDataForFinishedMessage(isClient: false).dataWithBytes()
                 if let encrypted = encrypt(s.serverVerifyData, contentType: .handshake(.finished), iv: nil) {
-                    let finishedMsg = TLSHandshakeMessage(.finished)
+                    let finishedMsg = TLSHandshakeMessage(.handshake(.finished), context: context)
                     finishedMsg.encrypted = encrypted
                     context.sock.writeData(data: finishedMsg.dataWithBytes(), tag: .handshake(.finished))
                 }

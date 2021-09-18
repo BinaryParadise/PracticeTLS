@@ -8,8 +8,9 @@
 import Foundation
 
 class TLSServerHelloDone: TLSHandshakeMessage {
-    override init(_ type: TLSHandshakeType = .clientHello) {
-        super.init(.serverHelloDone)
+    
+    init() {
+        super.init(.handshake(.serverHelloDone), context: nil)
     }
     
     override func dataWithBytes() -> [UInt8] {
