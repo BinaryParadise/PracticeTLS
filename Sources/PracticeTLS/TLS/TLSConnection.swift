@@ -54,10 +54,11 @@ public class TLSConnection: NSObject {
                 }
             }
             
-            let d = msg.messageData()
-            LogWarn("//\(msg)_\(d.count)")
-            handshakeData.append(contentsOf: d)
+            handshakeData.append(contentsOf: msg.dataWithBytes())
         }
+        LogWarn(handshakeMessages.map { msg in
+            "\(msg)_\(msg.dataWithBytes().count)"
+        }.joined(separator: ", "))
         return record.s.hashAlgorithm.hashFunction(handshakeData)
     }
     
@@ -73,10 +74,10 @@ public class TLSConnection: NSObject {
         sock.readData(tag: .handshake(.clientHello))
     }
     
-    func verifyDataForFinishedMessage(isClient: Bool) -> TLSFinished {
+    func verifyDataForFinishedMessage(isClient: Bool) -> [UInt8] {
         let finishedLabel = isClient ? TLSClientFinishedLabel : TLSServerFinishedLabel
         let verifyData = record.s.PRF(secret: record.s.masterSecret, label: finishedLabel, seed: transcriptHash, outputLength: 12)
-        return TLSFinished(verifyData)
+        return verifyData
     }
     
     public func disconnect() {
@@ -93,22 +94,33 @@ public class TLSConnection: NSObject {
     
     public func writeApplication(data: [UInt8], tag: Int) {
         readWriteTag = tag
-        sendData(TLSApplicationData(data, context: self).dataWithBytes(), tag: .applicationData)
+        sendMessage(msg: TLSApplicationData(plantData: data))
     }
     
-    func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) throws -> [UInt8]? {
+    func decryptAndVerifyMAC(contentType : ContentType, data : [UInt8]) throws -> [UInt8]? {
         return try record.decrypt(data, contentType: contentType)
     }
         
     func sendMessage(msg: TLSMessage?) {
         guard let msg = msg else { return }
-        let data: [UInt8] = record.serverCipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
+        var prepareData: [UInt8] = []
+        if record.serverCipherChanged {
+            prepareData.write(ContentType.applicationData.rawValue)
+        } else {
+            prepareData.write(msg.contentType.rawValue)
+        }
+        prepareData.write(version.rawValue.bytes)
+        let contentData = record.serverCipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
+        prepareData.write(UInt16(contentData.count).bytes)
+        
+        prepareData.write(contentData)
+        
         nextMessage = msg.nextMessage
         if let handshake =  msg as? TLSHandshakeMessage {
             handshakeMessages.append(handshake)
         }
         
-        sendData(data, tag: msg.rwtag)
+        sendData(prepareData, tag: msg.rwtag)
     }
     
     func sendData(_ sendData: [UInt8], tag: RWTags) {
@@ -143,7 +155,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                             handshakeMessages.append(handshake)
                         }
                     }
-                    try record.didReadMessage(msg, rawData: rawData)
+                    try record.didReadMessage(msg, rawData: rawData, unpack: false)
                 } catch {
                     LogError("\(error)")
                 }

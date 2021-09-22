@@ -21,7 +21,7 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
     var extensions: [TLSExtension] = []
     
     init(client: TLSClientHello, context: TLSConnection) {
-        super.init(.handshake(.serverHello))
+        super.init(.serverHello)
 
         sessionID = client.sessionID
         

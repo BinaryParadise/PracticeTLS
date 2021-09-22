@@ -17,7 +17,7 @@ extension Bundle {
 public class TLSCertificate: TLSHandshakeMessage {
     
     init(_ context: TLSConnection? = nil) {
-        super.init(.handshake(.certificate), context: context)
+        super.init(.certificate, context: context)
     }
     
     override func dataWithBytes() -> [UInt8] {
@@ -41,15 +41,7 @@ public class TLSCertificate: TLSHandshakeMessage {
         certificateData.append(contentsOf: UInt(certificatesList.count).bytes[1...3])
         certificateData.append(contentsOf: certificatesList)
         
-        var bytes: [UInt8] = []
-        //header
-        bytes.append(type.rawValue) // 1 byte
-        bytes.append(contentsOf: version.rawValue.bytes) // 2 bytes
-        bytes.append(contentsOf: UInt16(certificateData.count + 4).bytes) // 2 bytes
-
-        bytes.append(handshakeType.rawValue)
-        bytes.append(contentsOf: UInt(certificateData.count).bytes[1...3])
-        bytes.append(contentsOf: certificateData)
-        return bytes
+        writeHeader(data: &certificateData)
+        return certificateData
     }
 }

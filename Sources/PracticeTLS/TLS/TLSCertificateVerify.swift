@@ -38,25 +38,15 @@ class TLSCertificateVerify: TLSHandshakeMessage {
         self.algorithm = algorithm
         self.signature = signature
         
-        super.init(.handshake(.certificateVerify))
+        super.init(.certificateVerify)
     }
     
     override func dataWithBytes() -> [UInt8] {
-        var bytes: [UInt8] = []
-        //bytes.append(type.rawValue)
-        //bytes.append(contentsOf: version.rawValue.bytes)
-        //bytes.append(contentsOf: UInt16(signature.count-4).bytes)
-        
-        bytes.append(handshakeType.rawValue)
-        bytes.append(contentsOf: (4+signature.count).bytes[1...])
-        
+        var bytes: [UInt8] = []        
         bytes.append(contentsOf: algorithm.rawValue.bytes)
         bytes.append(contentsOf: UInt16(signature.count).bytes)
         bytes.append(contentsOf: signature)
+        writeHeader(data: &bytes)
         return bytes
-    }
-    
-    override func messageData() -> [UInt8] {
-        return dataWithBytes()
     }
 }

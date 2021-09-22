@@ -27,15 +27,6 @@ class ECDHServerParams: Streamable {
         }
     }
     
-    func parametersData() -> [UInt8] {
-        var bytes: [UInt8] = []
-        bytes.append(curveType.rawValue)
-        bytes.append(contentsOf: namedCurve.rawValue.bytes)
-        bytes.append(UInt8(pubKey.count))
-        bytes.append(contentsOf: pubKey)
-        return bytes
-    }
-    
     func dataWithBytes() -> [UInt8] {
         var bytes: [UInt8] = []
         bytes.append(curveType.rawValue)
@@ -58,10 +49,10 @@ class TLSServerKeyExchange: TLSHandshakeMessage {
         params = try ECDHServerParams(pubKey)
         
         //踩坑：想当然的以为只有pubkey需要签名⚠️⚠️⚠️
-        let plantData = serverHello.client!.random.dataWithBytes()+serverHello.random.dataWithBytes()+params.parametersData()
+        let plantData = serverHello.client!.random.dataWithBytes()+serverHello.random.dataWithBytes()+params.dataWithBytes()
         signedData = try TLSSignedData(hashAlgorithm: .sha256, signatureAlgorithm: .rsa, signature: RSAEncryptor().sign(data: plantData))
         //signedData.signature[0] = 0x0a
-        super.init(.handshake(.serverKeyExchange))
+        super.init(.serverKeyExchange)
         nextMessage = TLSServerHelloDone()
     }
     
@@ -71,15 +62,9 @@ class TLSServerKeyExchange: TLSHandshakeMessage {
     
     override func dataWithBytes() -> [UInt8] {
         var b: [UInt8] = []
-        let length = UInt16(params.dataWithBytes().count + signedData.bytes.count)
-        b.append(type.rawValue)
-        b.append(contentsOf: version.rawValue.bytes)
-        b.append(contentsOf: (length+4).bytes)
-        
-        b.append(handshakeType.rawValue)
-        b.append(contentsOf: Int(length).bytes[1...])
         b.append(contentsOf: params.dataWithBytes())
         b.append(contentsOf: signedData.bytes)
+        writeHeader(data: &b)
         return b
     }
 }

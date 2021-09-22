@@ -37,31 +37,35 @@ extension TLS1_3 {
                 let shareSecret = try? encryptor.keyExchange(context.preMasterKey)
                 s.masterSecret = shareSecret!
                 handshakeState.deriveHandshakeSecret(with: shareSecret!, transcriptHash: transcriptHash ?? context.transcriptHash)
-                changeKeys(with: handshakeState.clientHandshakeTrafficSecret!, isRead: true)
-                changeKeys(with: handshakeState.serverHandshakeTrafficSecret!, isRead: false)
+                changeReadKey(with: handshakeState.clientHandshakeTrafficSecret!)
+                changeWriteKey(with: handshakeState.serverHandshakeTrafficSecret!)
                 break
             }
         }
         
-        func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws {
-            LogDebug("\(msg.type) -> \(rawData.count)")
+        func didReadMessage(_ msg: TLSMessage, rawData: [UInt8], unpack: Bool = false) throws {
+            if unpack || !clientCipherChanged {
+                LogDebug("\(msg.type) -> \(rawData.count)")
+            }
             switch msg.type {
             case .changeCipherSpec:
                 clientCipherChanged = true
-            case .handshake(let handshakeType):
+            case .handshake(_):
                 if let msg = context.nextMessage {
                     context.sendMessage(msg: msg)
                 } else {
-                    if msg is TLSHandshakeMessage {
-                        switch handshakeType {
-                        case .finished:
-                            handshakeState.deriveApplicationTrafficSecrets(transcriptHash: context.transcriptHash)
-                            changeKeys(with: handshakeState.clientTrafficSecret!, isRead: true)
-                            changeKeys(with: handshakeState.serverTrafficSecret!, isRead: false)
+                    switch msg {
+                    case is TLSFinished:
+                        let finished = msg as! TLSFinished
+                        if finished.verifyData == finishedData(forClient: true) {
                             handshaked = true
+                            changeReadKey(with: handshakeState.clientTrafficSecret ?? [])
                             TLSSessionManager.shared.delegate?.didHandshakeFinished(context)
-                        default:break
+                        } else {
+                            context.sendMessage(msg: TLSAlert(alert: .badRecordMAC, alertLevel: .fatal))
                         }
+                    default:
+                        break
                     }
                 }
             case .alert:
@@ -83,18 +87,19 @@ extension TLS1_3 {
                 }
             case .applicationData:
                 let appData = msg as! TLSApplicationData
-                if let decryptedData = try decrypt(appData.encryptedData, contentType: msg.type) {
-                    if handshaked {
-                        TLSSessionManager.shared.delegate?.didReadApplication(decryptedData, connection: context, tag: context.readWriteTag)
-                    } else {
-                        if let contentType = ContentType(rawValue: decryptedData.last ?? 0) {
-                            if contentType == .alert {
-                                try didReadMessage(TLSAlert(stream: Array(decryptedData[0...1]).stream, context: context)!, rawData: decryptedData)
-                                return
+                if let decryptedData = try decrypt(appData.rawData, contentType: msg.contentType) {
+                    if let contentType = ContentType(rawValue: decryptedData.last ?? 0) {
+                        if contentType == .alert {
+                            try didReadMessage(TLSAlert(stream: Array(decryptedData[0...1]).stream, context: context)!, rawData: decryptedData, unpack: true)
+                            return
+                        } else {
+                            if handshaked {
+                                TLSSessionManager.shared.delegate?.didReadApplication(decryptedData.dropLast(), connection: context, tag: context.readWriteTag)
+                            } else {
+                                if let newMsg = TLSMessage.fromData(data: decryptedData.dropLast(), context: context, contentType: contentType) {
+                                    try didReadMessage(newMsg, rawData: decryptedData, unpack: true)
+                                }
                             }
-                        }
-                        if let newMsg = TLSMessage.fromData(data: decryptedData.dropLast(), context: context) {
-                            try didReadMessage(newMsg, rawData: decryptedData)
                         }
                     }
                 } else {
@@ -161,6 +166,9 @@ extension TLS1_3 {
         func sendFinished() {
             let verifyData = finishedData(forClient: false)
             context.sendMessage(msg: TLSFinished(verifyData))
+                        
+            handshakeState.deriveApplicationTrafficSecrets(transcriptHash: context.transcriptHash)
+            changeWriteKey(with: handshakeState.serverTrafficSecret!)
         }
         
         func finishedData(forClient isClient: Bool) -> [UInt8] {
@@ -199,11 +207,11 @@ extension TLS1_3 {
         struct Encryptor {
             var p: EncryptionParameters
             
-            mutating func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]? = nil) -> [UInt8]? {
+            mutating func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]? = nil) -> [UInt8]? {
                 do {
                     let plainText = data + [contentType.rawValue] + [UInt8](repeating: 0, count: 12)
                     var authData: [UInt8] = []
-                    authData.append(TLSMessageType.applicationData.rawValue)
+                    authData.append(ContentType.applicationData.rawValue)
                     authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
                     authData.append(contentsOf: UInt16(plainText.count + p.cipherSuiteDecriptor.authTagSize).bytes)
                     //启用 CryptoKit
@@ -225,7 +233,7 @@ extension TLS1_3 {
         struct Decryptor {
             var p: EncryptionParameters
             
-            mutating func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
+            mutating func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]? {
                 do {
                     
                     //启用 CryptoKit
@@ -238,7 +246,7 @@ extension TLS1_3 {
                         let authTag = Array(encryptedData[(encryptedData.count - p.cipherSuiteDecriptor.authTagSize)...])
                         
                         var authData: [UInt8] = []
-                        authData.append(TLSMessageType.applicationData.rawValue)
+                        authData.append(ContentType.applicationData.rawValue)
                         authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
                         authData.append(contentsOf: UInt16(encryptedData.count).bytes)
                     
@@ -274,36 +282,24 @@ extension TLS1_3 {
          
          */
         
-        func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]? = nil) -> [UInt8]? {
+        func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]? = nil) -> [UInt8]? {
             return encryptor.encrypt(data, contentType: contentType, iv: iv)
         }
         
-        func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
+        func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]? {
             return try decryptor.decrypt(encryptedData, contentType: contentType)
         }
         
         func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8]) {
             
         }
+                
+        func changeReadKey(with trafficSecret: [UInt8]) {
+            decryptor = .init(p: handshakeState.neweEncryptionParameters(withTrafficSecret: trafficSecret, cipherSuite: context.cipherSuite))
+        }
         
-        private func changeKeys(with trafficSecret: [UInt8], isRead: Bool) {
-            guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[context.cipherSuite]
-                else {
-                fatalError("Unsupported cipher suite \(context.cipherSuite)")
-            }
-            
-            let ivSize = cipherSuiteDescriptor.fixedIVLength
-            let keySize = cipherSuiteDescriptor.bulkCipherAlgorithm.keySize
-            
-            // calculate traffic keys and IVs as of RFC 8446 Section 7.3 Traffic Key Calculation
-            let key = handshakeState.HKDF_Expand_Label(secret: trafficSecret, label: keyLabel,  hashValue: [], outputLength: keySize)
-            let iv  = handshakeState.HKDF_Expand_Label(secret: trafficSecret, label: ivLabel, hashValue: [], outputLength: ivSize)
-            
-            if isRead {
-                decryptor = .init(p: EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv))
-            } else {
-                encryptor = .init(p: EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv))
-            }
+        func changeWriteKey(with trafficSecret: [UInt8]) {
+            encryptor = .init(p: handshakeState.neweEncryptionParameters(withTrafficSecret: trafficSecret, cipherSuite: context.cipherSuite))
         }
         
         func setPendingSecurityParametersForCipherSuite(_ cipherSuite: CipherSuite) {

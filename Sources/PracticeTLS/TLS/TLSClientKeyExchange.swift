@@ -43,19 +43,4 @@ class TLSClientKeyExchange: TLSHandshakeMessage {
             }
         }
     }
-    
-    override func messageData() -> [UInt8] {
-        var bytes:[UInt8] = []
-        bytes.append(handshakeType.rawValue)
-        if let preMaster = preMasterSecret {
-            bytes.append(contentsOf: UInt(preMaster.encryptedPreMaster.count + 2).bytes[1...3])
-            bytes.append(contentsOf: UInt16(preMaster.encryptedPreMaster.count).bytes)
-            bytes.append(contentsOf: preMaster.encryptedPreMaster)
-        } else if let ecdhp = ecdhParams {
-            bytes.append(contentsOf: UInt(ecdhp.pubKey.count + 1).bytes[1...3])
-            bytes.append(UInt8(ecdhp.pubKey.count))
-            bytes.append(contentsOf: ecdhp.pubKey)
-        }
-        return bytes
-    }
 }

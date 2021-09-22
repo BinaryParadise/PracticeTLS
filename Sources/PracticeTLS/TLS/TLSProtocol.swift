@@ -13,8 +13,8 @@ public var selectedCurve: NamedGroup = .secp256r1
 public enum ContentType: UInt8 {
     case changeCipherSpec = 20
     case alert            = 21
-    case handeshake       = 22
-    case applicatonData   = 23
+    case handshake       = 22
+    case applicationData   = 23
 }
 
 /// 消息类型
@@ -29,8 +29,8 @@ public enum TLSMessageType {
         switch type {
         case .changeCipherSpec: self = .changeCipherSpec
         case .alert: self = .alert
-        case .handeshake: self = .handshake(.clientHello)
-        case .applicatonData: self = .applicationData
+        case .handshake: self = .handshake(.clientHello)
+        case .applicationData: self = .applicationData
         }
     }
     
@@ -39,11 +39,11 @@ public enum TLSMessageType {
         case .changeCipherSpec:
             return ContentType.changeCipherSpec.rawValue
         case .handshake(_):
-            return ContentType.handeshake.rawValue
+            return ContentType.handshake.rawValue
         case .alert:
             return ContentType.alert.rawValue
         case .applicationData:
-            return ContentType.applicatonData.rawValue
+            return ContentType.applicationData.rawValue
         }
     }
 }
@@ -420,15 +420,30 @@ extension TLS1_3 {
             clientTrafficSecret = Derive_Secret(secret: masterSecret!, label: TLS1_3.clientApplicationTrafficSecretLabel, transcriptHash: transcriptHash)
             serverTrafficSecret = Derive_Secret(secret: masterSecret!, label: TLS1_3.serverApplicationTrafficSecretLabel, transcriptHash: transcriptHash)
         }
+        
+        func neweEncryptionParameters(withTrafficSecret trafficSecret: [UInt8], cipherSuite: CipherSuite) -> RecordLayer.EncryptionParameters {
+            guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[cipherSuite]
+                else {
+                fatalError("Unsupported cipher suite \(cipherSuite)")
+            }
+            
+            let ivSize = cipherSuiteDescriptor.fixedIVLength
+            let keySize = cipherSuiteDescriptor.bulkCipherAlgorithm.keySize
+            
+            // calculate traffic keys and IVs as of RFC 8446 Section 7.3 Traffic Key Calculation
+            let key = HKDF_Expand_Label(secret: trafficSecret, label: keyLabel,  hashValue: [], outputLength: keySize)
+            let iv  = HKDF_Expand_Label(secret: trafficSecret, label: ivLabel, hashValue: [], outputLength: ivSize)
+            return RecordLayer.EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv)
+        }
     }
 }
 
 protocol Encryptable {
-    func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]?) -> [UInt8]?
+    func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]?) -> [UInt8]?
 }
 
 protocol Decryptable {
-    func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]?
+    func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]?
 }
 
 protocol TLSRecordProtocol: Encryptable, Decryptable {
@@ -436,7 +451,7 @@ protocol TLSRecordProtocol: Encryptable, Decryptable {
     var serverCipherChanged: Bool { get set }
     var s: TLSSecurityParameters! { get set }
     init(_ context: TLSConnection)
-    func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws
+    func didReadMessage(_ msg: TLSMessage, rawData: [UInt8], unpack: Bool) throws
     func didWriteMessage(_ tag: RWTags) -> RWTags?
     func derivedSecret(_ transcriptHash: [UInt8]?)
     func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8])

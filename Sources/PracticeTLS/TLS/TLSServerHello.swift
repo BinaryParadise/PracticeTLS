@@ -8,11 +8,10 @@
 import Foundation
 
 public class TLSServerHello: TLSHandshakeMessage {
-    var bodyLength: Int = 0
     var random: Random = Random()
     var sessionID: [UInt8] = []
     /// 必须选择客户端支持的加密套件，此处仅实现一两种
-    var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
+    var cipherSuite: CipherSuite
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = [] //[.init(type: .renegotiation_info, length: 1, ext: [0])]
     var extensionLength: UInt16 {
@@ -25,11 +24,7 @@ public class TLSServerHello: TLSHandshakeMessage {
     var client: TLSClientHello?
 
     init(client: TLSClientHello, context: TLSConnection) {
-        super.init(.handshake(.serverHello))
         self.client = client
-    
-        contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength
-        bodyLength = Int(contentLength - 4)
         
         //启用: h2
         #if false
@@ -49,6 +44,8 @@ public class TLSServerHello: TLSHandshakeMessage {
             let expectedCipher: CipherSuite = .TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
             if client.cipherSuites.contains(expectedCipher) {
                 cipherSuite = expectedCipher
+            } else {
+                cipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
             }
             context.record = TLS1_2.RecordLayer(context)
         }
@@ -59,8 +56,8 @@ public class TLSServerHello: TLSHandshakeMessage {
         context.record.setPendingSecurityParametersForCipherSuite(cipherSuite)
         context.cipherSuite = cipherSuite
         
-        version = context.version
-                
+        super.init(.serverHello)
+        
         switch context.keyExchange {
         case .rsa:
             let cert = TLSCertificate()
@@ -90,30 +87,19 @@ public class TLSServerHello: TLSHandshakeMessage {
     
     override func dataWithBytes() -> [UInt8] {
         var bytes:[UInt8] = []
-                
-        contentLength = 42 + (extensionLength > 0 ? 2 : 0) + extensionLength + UInt16(sessionID.count)
-        bodyLength = Int(contentLength - 4)
-        
-        //header
-        bytes.append(type.rawValue) // 1 byte
-        bytes.append(contentsOf: version.rawValue.bytes) // 2 bytes
-        bytes.append(contentsOf: UInt16(contentLength).bytes) // 2 bytes
-        
-        //body
-        bytes.append(handshakeType.rawValue) // 1 byte
-        bytes.append(contentsOf: UInt(bodyLength).bytes[1..<4]) //3 bytes
-        bytes.append(contentsOf: version.rawValue.bytes) //2 bytes
-        bytes.append(contentsOf: random.dataWithBytes()) //32 bytes
-        bytes.append(UInt8(truncatingIfNeeded: sessionID.count)) //1 byte
-        bytes.append(contentsOf: sessionID) //0 or 32 bytes
-        bytes.append(contentsOf: cipherSuite.rawValue.bytes) //2 bytes
-        bytes.append(compressionMethod.rawValue) //1 byte
+        bytes.write(version.rawValue.bytes)
+        bytes.write(random.dataWithBytes()) //32 bytes
+        bytes.write(UInt8(truncatingIfNeeded: sessionID.count)) //1 byte
+        bytes.write(sessionID) //0 or 32 bytes
+        bytes.write(cipherSuite.rawValue.bytes) //2 bytes
+        bytes.write(compressionMethod.rawValue) //1 byte
         if extensions.count > 0 {
-            bytes.append(contentsOf: extensionLength.bytes) //2 bytes
-            bytes.append(contentsOf: extensions.reduce([], { r, ext in
+            bytes.write(extensionLength.bytes) //2 bytes
+            bytes.write(extensions.reduce([], { r, ext in
                 r + ext.dataWithBytes()
             }))
         }
+        writeHeader(data: &bytes)
         return bytes
     }
 }

@@ -53,8 +53,10 @@ extension TLS1_2 {
             }
         }
         
-        func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws {
-            LogDebug("\(msg.type) -> \(rawData.count)")
+        func didReadMessage(_ msg: TLSMessage, rawData: [UInt8], unpack: Bool = false) throws {
+            if unpack || !clientCipherChanged {                
+                LogDebug("\(msg.type) -> \(rawData.count)")
+            }
             switch msg.type {
             case .changeCipherSpec:
                 clientCipherChanged = true
@@ -62,9 +64,18 @@ extension TLS1_2 {
                 if let handshake = msg as? TLSHandshakeMessage {
                     switch handshake.handshakeType {
                     case .finished:
-                        s.clientVerifyData = context.verifyDataForFinishedMessage(isClient: true).dataWithBytes()
-                        s.clientVerifyData = try context.decryptAndVerifyMAC(contentType: handshake.type, data: handshake.messageData()) ?? []
-                        context.sock.writeData(data: TLSChangeCipherSpec().dataWithBytes(), tag: .changeCipherSpec)
+                        let clientFinished = TLSFinished(context.verifyDataForFinishedMessage(isClient: true))
+                        s.clientVerifyData = clientFinished.dataWithBytes()
+                        let clientVerifyData = try context.decryptAndVerifyMAC(contentType: handshake.contentType, data: handshake.dataWithBytes()) ?? []
+                        if clientVerifyData == s.clientVerifyData {
+                            context.sock.writeData(data: TLSChangeCipherSpec().dataWithBytes(), tag: .changeCipherSpec)
+                            //踩坑：发送给客户端的finish也需要包含在摘要的握手消息中⚠️⚠️⚠️⚠️⚠️
+                            context.handshakeMessages.append(clientFinished)
+                        } else {
+                            //assert(clientVerifyData == s.clientVerifyData, "消息验证失败")
+                            LogWarn("let transcriptHash = \(s.clientVerifyData.toHexString()).uint8Array")
+                            context.sendMessage(msg: TLSAlert(alert: .decryptError, alertLevel: .fatal))
+                        }
                     default:
                         context.sendMessage(msg: handshake.nextMessage)
                     }
@@ -92,7 +103,7 @@ extension TLS1_2 {
                 }
             case .applicationData:
                 let appData = msg as! TLSApplicationData
-                if let httpData = try decrypt(appData.encryptedData, contentType: msg.type) {
+                if let httpData = try decrypt(appData.rawData, contentType: msg.contentType) {
                     TLSSessionManager.shared.delegate?.didReadApplication(httpData, connection: context, tag: context.readWriteTag)
                 }
             }
@@ -110,16 +121,8 @@ extension TLS1_2 {
             switch tag {
             case .changeCipherSpec:
                 serverCipherChanged = true
-                let clientFinishedMsg = context.verifyDataForFinishedMessage(isClient: true)
-                //踩坑：发送给客户端的finish也需要包含在摘要的握手消息中⚠️⚠️⚠️⚠️⚠️
-                context.handshakeMessages.append(clientFinishedMsg)
-                
-                s.serverVerifyData = context.verifyDataForFinishedMessage(isClient: false).dataWithBytes()
-                if let encrypted = encrypt(s.serverVerifyData, contentType: .handshake(.finished), iv: nil) {
-                    let finishedMsg = TLSHandshakeMessage(.handshake(.finished), context: context)
-                    finishedMsg.encrypted = encrypted
-                    context.sock.writeData(data: finishedMsg.dataWithBytes(), tag: .handshake(.finished))
-                }
+                s.serverVerifyData = context.verifyDataForFinishedMessage(isClient: false)
+                context.sendMessage(msg: TLSFinished(s.serverVerifyData))
             case .handshake(let handshakeType):
                 if sendNext() {
                     
@@ -229,7 +232,7 @@ extension TLS1_2 {
                 self.authTagSize = authTagSize
             }
             
-            public func calculateMessageMAC(secret: [UInt8], contentType : TLSMessageType, data : [UInt8]) -> [UInt8]?
+            public func calculateMessageMAC(secret: [UInt8], contentType : ContentType, data : [UInt8]) -> [UInt8]?
             {
                 let MACHeader = MACHeader(contentType, dataLength: data.count) ?? []
                 return calculateMAC(secret: secret, data: MACHeader + data)
@@ -239,7 +242,7 @@ extension TLS1_2 {
                 return hmac.hmacFunction(secret, data)
             }
             
-            func MACHeader(_ contentType: TLSMessageType, dataLength: Int, version: TLSVersion = .V1_2) -> [UInt8]? {
+            func MACHeader(_ contentType: ContentType, dataLength: Int, version: TLSVersion = .V1_2) -> [UInt8]? {
                 //LogWarn("\(title) -> sequenceNumber: \(sequenceNumber)")
                 var macData: [UInt8] = []
                 macData.append(contentsOf: sequenceNumber.bytes)
@@ -249,7 +252,7 @@ extension TLS1_2 {
                 return macData
             }
             
-            public func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]?) -> [UInt8]? {
+            public func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]?) -> [UInt8]? {
                 //PS: CryptoSwift的padding处理异常导致加解密有问题⚠️⚠️⚠️
                 let isAEAD = cipherType == .aead
                 let MAC = isAEAD ? [] : calculateMessageMAC(secret: MACKey, contentType: contentType, data: data)!
@@ -292,7 +295,7 @@ extension TLS1_2 {
                 return nil
             }
             
-            public func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
+            public func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]? {
                 if encryptedData.count < recordIVLength+blockLength {
                     return nil
                 }
@@ -362,11 +365,11 @@ extension TLS1_2 {
             }
         }
         
-        public func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]?) -> [UInt8]? {
+        public func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]?) -> [UInt8]? {
             return writeEncryptionParameters.encrypt(data, contentType: contentType, iv: iv)
         }
         
-        public func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]? {
+        public func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]? {
             return try readEncryptionParameters.decrypt(encryptedData, contentType: contentType)
         }
     }

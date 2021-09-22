@@ -93,12 +93,17 @@ public class DataStream {
     }
     
     ///读取四个字节
-    public func readUInt() -> UInt? {
+    @discardableResult public func readUInt() -> UInt? {
         if let bytes = read(count: 4) {
             return UInt(bytes[0])  << 24 + UInt(bytes[1])  << 16 + UInt(bytes[2]) << 8 + UInt(bytes[3])
         }
         return nil
     }
+}
+
+protocol OutputStream {
+    mutating func write(_ data: [UInt8])
+    mutating func write(_ data: UInt8)
 }
 
 extension Int {
@@ -159,6 +164,20 @@ extension Array where Element == UInt8 {
     
     public var data: Data {
         return Data(self)
+    }
+}
+
+extension Array: OutputStream where Element == UInt8 {
+    mutating func write(_ data: UInt8) {
+        append(data)
+    }
+    
+    mutating func write(_ data: [UInt8]) {
+        append(contentsOf: data)
+    }
+    
+    mutating func write(_ data: SubSequence) {
+        append(contentsOf: data)
     }
 }
 
