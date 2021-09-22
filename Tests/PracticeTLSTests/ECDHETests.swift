@@ -152,14 +152,14 @@ class ECDHETests: XCTestCase {
     }
     
     func testKeyLog() throws {
-        let priKey = "0484dfa417b03553d58c90111ce99baa8418f392a55519dd9a38290414e8cec96f3e7b03b7e97e9189fc02e2cee3eafbf34ed54ac107417385af6cde4db4ff9a99c424f2425c9589309ef09e69c7ae79e977910257630de97bb42d755b9a4e6eda".uint8Array
-        let serverPubKey = "0484dfa417b03553d58c90111ce99baa8418f392a55519dd9a38290414e8cec96f3e7b03b7e97e9189fc02e2cee3eafbf34ed54ac107417385af6cde4db4ff9a99".uint8Array
-        let clientPubKey = "044b073e262d760ca8460d67e4ba19856e87489aad5ca3aa93847017b6cc26c5ae987cf819f75c30a412dc1eb19d2df96218d4937aec28432e2c59bf2e32d4eb9f".uint8Array
-        let clientRandom = "b1ac6624832518cdf8cc9187cb68bef24956653392692eaab71505e281c04ea7".uint8Array
-        let serverRandom = "26f5cf3614eeccccde667ce8e2e9dd2292e44958d7a8352ca409c55bd1cfb5bc".uint8Array
-        let transcriptHash = "e8c3df9b33ee5df3e774e78f59ebc4c12f14b604d477b33d64fe81f30d7ff59e".uint8Array
-        let clientHandshakeTrafficSecret = "cdbe911a05787ac058547b12a10ccfc8f914c32c7b096848400ccd78c38a9d1c".uint8Array
-        let serverHandshakeTrafficSecret = "ab300d5f4ee2f389c029a2e59af4de94fc0a5fc9ced39d7e7f9a571d4188acbc".uint8Array
+        let priKey = "044bef0611e8b69fe2074e50d0c70280e8f01f3afb9516d25615650b6ea2cf81a520d9180aaaa000961fba06bb27a58e3d312c2f49fab526b6b4a5c0b352815b610c9f4009ae46c4bdf05e6a7d70ec8c8782b123551189261655c879fac682a580".uint8Array
+        let serverPubKey = "044bef0611e8b69fe2074e50d0c70280e8f01f3afb9516d25615650b6ea2cf81a520d9180aaaa000961fba06bb27a58e3d312c2f49fab526b6b4a5c0b352815b61".uint8Array
+        let clientPubKey = "04829616ef4bf8abdb10f11091c56f79c626acbfce6dab46183c4df81caf3f6493de6f78131d16b76010f9e8b519ce9e59038c999755ee5e8f65871fccfc302b28".uint8Array
+        let clientRandom = "c5b1d78ecaafe61524e9c789d5f33e48dfb1a5864a4c9932433b3009c80dc808".uint8Array
+        let serverRandom = "26fac27ae85bf72b0c3f314dd623400ae4a6f8577acc90cbc2358b6f729f5ffc".uint8Array
+        let transcriptHash = "76be86c747737f27d068d603f9df4d2695eb857ecb2ea969e46121d9778c54ca".uint8Array
+        let clientHandshakeTrafficSecret = "45b7da6c8866e595843551244b3aca6d865e94c5d80b09c3137aa03c7885666f".uint8Array
+        let serverHandshakeTrafficSecret = "e792255d4a54ab6dd3ad61c1f052da803077f68cd4d357c7baf7249090fa59bb".uint8Array
         
         let conn = TLSConnection(GCDAsyncSocket())
         let record = TLS1_3.RecordLayer(conn)
@@ -170,7 +170,7 @@ class ECDHETests: XCTestCase {
         
         record.derivedSecret(transcriptHash)
         
-        XCTAssertEqual(record.handshakeState.clientHandshakeTrafficSecret?.toHexString(), "71677573cac022701a202664e856be1782f743f2287381a37fd9e127c5a4595c")
-        XCTAssertEqual(record.handshakeState.serverHandshakeTrafficSecret?.toHexString(), "45775de7afebfc26d2a1de6b5ff895d6730c023d1d80085f2b9591b238db6dc3")
+        XCTAssertEqual(record.handshakeState.clientHandshakeTrafficSecret?.toHexString(), "45b7da6c8866e595843551244b3aca6d865e94c5d80b09c3137aa03c7885666f")
+        XCTAssertEqual(record.handshakeState.serverHandshakeTrafficSecret?.toHexString(), "e792255d4a54ab6dd3ad61c1f052da803077f68cd4d357c7baf7249090fa59bb")
     }
 }

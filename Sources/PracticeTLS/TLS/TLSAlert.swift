@@ -20,7 +20,9 @@ class TLSAlert: TLSMessage {
     }
     
     override init?(stream: DataStream, context: TLSConnection) {
-        stream.read(count: 5)
+        if stream.data.count > 2 {
+            stream.read(count: 5)
+        }
         level = TLSAlertLevel(rawValue: stream.readByte() ?? 0) ?? .warning
         alertType = TLSAlertType(rawValue: stream.readByte() ?? 0) ?? .accessDenied
         super.init(.alert)

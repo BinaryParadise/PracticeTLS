@@ -55,6 +55,9 @@ extension TLS1_3 {
                     if msg is TLSHandshakeMessage {
                         switch handshakeType {
                         case .finished:
+                            handshakeState.deriveApplicationTrafficSecrets(transcriptHash: context.transcriptHash)
+                            changeKeys(with: handshakeState.clientTrafficSecret!, isRead: true)
+                            changeKeys(with: handshakeState.serverTrafficSecret!, isRead: false)
                             handshaked = true
                             TLSSessionManager.shared.delegate?.didHandshakeFinished(context)
                         default:break
@@ -84,7 +87,13 @@ extension TLS1_3 {
                     if handshaked {
                         TLSSessionManager.shared.delegate?.didReadApplication(decryptedData, connection: context, tag: context.readWriteTag)
                     } else {
-                        if let newMsg = TLSMessage.fromData(data: decryptedData, context: context) {
+                        if let contentType = ContentType(rawValue: decryptedData.last ?? 0) {
+                            if contentType == .alert {
+                                try didReadMessage(TLSAlert(stream: Array(decryptedData[0...1]).stream, context: context)!, rawData: decryptedData)
+                                return
+                            }
+                        }
+                        if let newMsg = TLSMessage.fromData(data: decryptedData.dropLast(), context: context) {
                             try didReadMessage(newMsg, rawData: decryptedData)
                         }
                     }
@@ -97,16 +106,19 @@ extension TLS1_3 {
         func didWriteMessage(_ tag: RWTags) -> RWTags? {
             switch tag {
             case .handshake(let handshakeType):
-                if handshakeType == .serverHello {
-                    derivedSecret(context.transcriptHash)
-                    context.nextMessage = TLSEncryptedExtensions(context: context)
-                } else if handshakeType == .encryptedExtensions {
-                    return .applicationData
-                }
                 if let msg = context.nextMessage {
                     context.sendMessage(msg: msg)
                 } else {
                     switch handshakeType {
+                    case .serverHello:
+                        derivedSecret(context.transcriptHash)
+                        context.sendMessage(msg: TLSEncryptedExtensions(context: context))
+                    case .encryptedExtensions:
+                        context.sendMessage(msg: TLSCertificate(context))
+                    case .certificate:
+                        sendCertificateVerify()
+                    case .certificateVerify:
+                        sendFinished()
                     case .helloRetryRequest:
                         return .handshake(.clientHello)
                     case .finished:
@@ -130,7 +142,7 @@ extension TLS1_3 {
         
         func sendCertificateVerify() {
             if context.negotiatedProtocolVersion == .V1_3 {
-                var signer = RSAEncryptor()
+                let signer = RSAEncryptor()
                 
                 var proofData = [UInt8](repeating: 0x20, count: 64)
                 proofData += TLS1_3.serverCertificateVerifyContext
@@ -138,8 +150,8 @@ extension TLS1_3 {
                 proofData += context.transcriptHash
                 
                 do {
-                    let signature = try signer.sign(data: proofData)
-                    context.nextMessage = TLSCertificateVerify(algorithm: .rsa_pkcs1_sha256, signature: signature)
+                    let signature = try signer.sign(data: proofData, algorithm: .rsaSignatureMessagePSSSHA256)
+                    context.sendMessage(msg: TLSCertificateVerify(algorithm: .rsa_pss_sha256, signature: signature))
                 } catch {
                     LogError("\(error)")
                 }
@@ -147,12 +159,20 @@ extension TLS1_3 {
         }
         
         func sendFinished() {
-            let finishedKey = handshakeState.deriveFinishedKey(secret: handshakeState.serverHandshakeTrafficSecret!)
+            let verifyData = finishedData(forClient: false)
+            context.sendMessage(msg: TLSFinished(verifyData))
+        }
+        
+        func finishedData(forClient isClient: Bool) -> [UInt8] {
+            let secret = isClient ? handshakeState.clientHandshakeTrafficSecret! : handshakeState.serverHandshakeTrafficSecret!
+
+            let finishedKey = handshakeState.deriveFinishedKey(secret: secret)
             
             let transcriptHash = context.transcriptHash
             
-            let finishedData = handshakeState.hashAlgorithm.hmac(finishedKey, transcriptHash)
-            context.nextMessage = TLSFinished(finishedData)
+            let finishedData = s.hashAlgorithm.hmac(finishedKey, transcriptHash)
+            
+            return finishedData
         }
         
         struct EncryptionParameters {
@@ -227,7 +247,7 @@ extension TLS1_3 {
                         return message
                     }
                 } catch {
-                    print("let cipherData: [UInt8] = \"\(encryptedData.toHexString())\".uint8Array")
+                    //print("let cipherData: [UInt8] = \"\(encryptedData.toHexString())\".uint8Array")
                     print("\(error)")
                 }
                 return nil
@@ -310,6 +330,8 @@ extension TLS1_3 {
                 let transcriptHash = "\(handshakeState.handshakeTranscriptionHash.toHexString())"
                 let clientHandshakeTrafficSecret = "\(handshakeState.clientHandshakeTrafficSecret!.toHexString())".uint8Array
                 let serverHandshakeTrafficSecret = "\(handshakeState.serverHandshakeTrafficSecret!.toHexString())".uint8Array
+                let clientTrafficSecret = "\(handshakeState.clientTrafficSecret!.toHexString())".uint8Array
+                let serverTrafficSecret = "\(handshakeState.serverTrafficSecret!.toHexString())".uint8Array
                 """
             }
         }

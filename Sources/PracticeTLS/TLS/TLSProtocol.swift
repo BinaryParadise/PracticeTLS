@@ -150,8 +150,8 @@ func TLSExtensionsfromData(_ data: [UInt8], messageType: TLSMessageExtensionType
                 switch type {
                 case .supported_versions:
                     var vers = TLSSupportedVersionsExtension(stream: stream)!
-                    #if false
                     // 禁用TLS 1.3
+                    #if false
                     vers.versions.removeAll { v in
                         v == .V1_3
                     }
@@ -408,6 +408,17 @@ extension TLS1_3 {
             let finishedKey = HKDF_Expand_Label(secret: secret, label: finishedLabel, hashValue: [], outputLength: hashLength)
             
             return finishedKey
+        }
+        
+        func deriveApplicationTrafficSecrets(transcriptHash: [UInt8]) {
+            let zeroes = [UInt8](repeating: 0, count: hashAlgorithm.hashLength)
+            
+            let derivedSecret = Derive_Secret(secret: handshakeSecret!, label: derivedLabel, transcriptHash: hashAlgorithm.hashFunction([]))
+
+            masterSecret = HKDF_Extract(salt: derivedSecret, inputKeyingMaterial: zeroes)
+            
+            clientTrafficSecret = Derive_Secret(secret: masterSecret!, label: TLS1_3.clientApplicationTrafficSecretLabel, transcriptHash: transcriptHash)
+            serverTrafficSecret = Derive_Secret(secret: masterSecret!, label: TLS1_3.serverApplicationTrafficSecretLabel, transcriptHash: transcriptHash)
         }
     }
 }
