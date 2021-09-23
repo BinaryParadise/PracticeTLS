@@ -8,7 +8,7 @@
 import Foundation
 import CryptoSwift
 
-public var selectedCurve: NamedGroup = .x25519
+public var selectedCurve: NamedGroup = .x25519 //Firefox 92.0 默认支持x25519、secp256r1
 
 public enum ContentType: UInt8 {
     case changeCipherSpec = 20
@@ -421,7 +421,7 @@ extension TLS1_3 {
             serverTrafficSecret = Derive_Secret(secret: masterSecret!, label: TLS1_3.serverApplicationTrafficSecretLabel, transcriptHash: transcriptHash)
         }
         
-        func neweEncryptionParameters(withTrafficSecret trafficSecret: [UInt8], cipherSuite: CipherSuite) -> RecordLayer.EncryptionParameters {
+        func neweEncryptionParameters(withTrafficSecret trafficSecret: [UInt8], cipherSuite: CipherSuite) -> EncryptionParameters {
             guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[cipherSuite]
                 else {
                 fatalError("Unsupported cipher suite \(cipherSuite)")
@@ -433,7 +433,7 @@ extension TLS1_3 {
             // calculate traffic keys and IVs as of RFC 8446 Section 7.3 Traffic Key Calculation
             let key = HKDF_Expand_Label(secret: trafficSecret, label: keyLabel,  hashValue: [], outputLength: keySize)
             let iv  = HKDF_Expand_Label(secret: trafficSecret, label: ivLabel, hashValue: [], outputLength: ivSize)
-            return RecordLayer.EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv)
+            return EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv)
         }
     }
 }

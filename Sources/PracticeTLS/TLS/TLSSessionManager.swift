@@ -20,15 +20,20 @@ public class TLSSessionManager: NSObject {
     public var identity: Identity? = nil
     var sessions: [String : TLSConnection] = [:]
     public var delegate: TLSConnectionDelegate?
+    let sema = DispatchSemaphore(value: 1)
     
     public func acceptConnection(_ sock: GCDAsyncSocket) {
         let newConnection = TLSConnection(sock)
-        sessions[newConnection.sessionId] = newConnection
         newConnection.handshake()
+        sema.wait()
+        sessions[newConnection.sessionId] = newConnection
+        sema.signal()
     }
     
     public func clearConnection(_ connection: TLSConnection) {
+        sema.wait()
         sessions.removeValue(forKey: connection.sessionId)
+        sema.signal()
     }
     
     /// TODO:会话恢复

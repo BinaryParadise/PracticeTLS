@@ -21,6 +21,7 @@ extension TLS1_3 {
         var serverCipherChanged: Bool = false
         var handshakeState: HandshakeState
         var s: TLSSecurityParameters!
+        let sema = DispatchSemaphore(value: 0)
         
         required init(_ context: TLSConnection) {
             self.context = context
@@ -59,7 +60,10 @@ extension TLS1_3 {
                         let finished = msg as! TLSFinished
                         if finished.verifyData == finishedData(forClient: true) {
                             handshaked = true
-                            changeReadKey(with: handshakeState.clientTrafficSecret ?? [])
+                            
+                            //线程步调不一致导致解密失败⚠️⚠️⚠️⚠️
+                            sema.wait()
+                            changeReadKey(with: handshakeState.clientTrafficSecret!)
                             TLSSessionManager.shared.delegate?.didHandshakeFinished(context)
                         } else {
                             context.sendMessage(msg: TLSAlert(alert: .badRecordMAC, alertLevel: .fatal))
@@ -96,7 +100,7 @@ extension TLS1_3 {
                         }
                     }
                 } catch {
-                    LogError("\(error)\n\(description)")
+                    LogError("\(error) \(decryptor.description)")
                     context.sendMessage(msg: TLSAlert(alert: .badRecordMAC, alertLevel: .fatal))
                 }
             }
@@ -163,6 +167,7 @@ extension TLS1_3 {
                         
             handshakeState.deriveApplicationTrafficSecrets(transcriptHash: context.transcriptHash)
             changeWriteKey(with: handshakeState.serverTrafficSecret!)
+            sema.signal()
         }
         
         func finishedData(forClient isClient: Bool) -> [UInt8] {
@@ -175,82 +180,6 @@ extension TLS1_3 {
             let finishedData = s.hashAlgorithm.hmac(finishedKey, transcriptHash)
             
             return finishedData
-        }
-        
-        struct EncryptionParameters {
-            var cipherSuiteDecriptor: CipherSuiteDescriptor
-            var key: [UInt8]
-            var iv: [UInt8]
-            var sequenceNumber: UInt64 = 0
-            
-            var blockSize: Int {
-                return cipherSuiteDecriptor.bulkCipherAlgorithm.blockSize
-            }
-            
-            var currentIV: [UInt8] {
-                // XOR the IV with the sequence number as of RFC 8446 section 5.3 Per-Record Nonce
-                let sequenceNumberSize = MemoryLayout<UInt64>.size
-                let ivLeftPart  = [UInt8](self.iv[0 ..< self.iv.count - sequenceNumberSize])
-                let ivRightPart = [UInt8](self.iv[self.iv.count - sequenceNumberSize ..< self.iv.count])
-                let iv : [UInt8] = ivLeftPart + (ivRightPart ^ sequenceNumber.bigEndianBytes)
-                
-                return iv
-            }
-        }
-        
-        struct Encryptor {
-            var p: EncryptionParameters
-            
-            mutating func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]? = nil) -> [UInt8]? {
-                do {
-                    let plainText = data + [contentType.rawValue] + [UInt8](repeating: 0, count: 12)
-                    var authData: [UInt8] = []
-                    authData.append(ContentType.applicationData.rawValue)
-                    authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
-                    authData.append(contentsOf: UInt16(plainText.count + p.cipherSuiteDecriptor.authTagSize).bytes)
-                    //启用 CryptoKit
-                    if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
-                        let box = try ChaChaPoly.seal(plainText, using: .init(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
-                        return (box.ciphertext + box.tag).bytes
-                    } else {
-                        let box = try CryptoKit.AES.GCM.seal(plainText, using: SymmetricKey(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
-                        p.sequenceNumber += 1
-                        return box.ciphertext.bytes + box.tag.bytes
-                    }
-                } catch {
-                    LogError("\(error)")
-                }
-                return nil
-            }
-        }
-        
-        struct Decryptor: CustomStringConvertible {
-            var p: EncryptionParameters
-            
-            mutating func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8] {
-                //启用 CryptoKit
-                if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
-                    let decrypted = try ChaChaPoly.open(.init(combined: p.currentIV+encryptedData), using: SymmetricKey(data: p.key), authenticating: []).bytes
-                    p.sequenceNumber += 1
-                    return decrypted
-                } else {
-                    let cipherData = Array(encryptedData[0..<encryptedData.count - p.cipherSuiteDecriptor.authTagSize])
-                    let authTag = Array(encryptedData[(encryptedData.count - p.cipherSuiteDecriptor.authTagSize)...])
-                    
-                    var authData: [UInt8] = []
-                    authData.append(ContentType.applicationData.rawValue)
-                    authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
-                    authData.append(contentsOf: UInt16(encryptedData.count).bytes)
-                
-                    let message = try CryptoKit.AES.GCM.open(.init(combined: p.currentIV + encryptedData), using: SymmetricKey(data: p.key), authenticating: authData).bytes
-                    p.sequenceNumber += 1
-                    return message
-                }
-            }
-            
-            var description: String {
-                return "Key: \(p.key.toHexString() ) IV: \(p.iv.toHexString() ?? "")"
-            }
         }
         
         var encryptor: Encryptor!
@@ -322,6 +251,79 @@ extension TLS1_3 {
                 let serverTrafficSecret = "\(handshakeState.serverTrafficSecret!.toHexString())".uint8Array
                 """
             }
+        }
+    }
+    
+    struct EncryptionParameters {
+        var cipherSuiteDecriptor: CipherSuiteDescriptor
+        var key: [UInt8]
+        var iv: [UInt8]
+        var sequenceNumber: UInt64 = 0
+        
+        var blockSize: Int {
+            return cipherSuiteDecriptor.bulkCipherAlgorithm.blockSize
+        }
+        
+        var currentIV: [UInt8] {
+            // XOR the IV with the sequence number as of RFC 8446 section 5.3 Per-Record Nonce
+            let sequenceNumberSize = MemoryLayout<UInt64>.size
+            let ivLeftPart  = [UInt8](self.iv[0 ..< self.iv.count - sequenceNumberSize])
+            let ivRightPart = [UInt8](self.iv[self.iv.count - sequenceNumberSize ..< self.iv.count])
+            let iv : [UInt8] = ivLeftPart + (ivRightPart ^ sequenceNumber.bigEndianBytes)
+            
+            return iv
+        }
+    }
+    
+    struct Encryptor {
+        var p: EncryptionParameters
+        
+        mutating func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]? = nil) -> [UInt8]? {
+            do {
+                let plainText = data + [contentType.rawValue] + [UInt8](repeating: 0, count: 12)
+                var authData: [UInt8] = []
+                authData.append(ContentType.applicationData.rawValue)
+                authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
+                authData.append(contentsOf: UInt16(plainText.count + p.cipherSuiteDecriptor.authTagSize).bytes)
+                //启用 CryptoKit
+                if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
+                    let box = try ChaChaPoly.seal(plainText, using: .init(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
+                    return (box.ciphertext + box.tag).bytes
+                } else {
+                    let box = try CryptoKit.AES.GCM.seal(plainText, using: SymmetricKey(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
+                    p.sequenceNumber += 1
+                    return box.ciphertext.bytes + box.tag.bytes
+                }
+            } catch {
+                LogError("\(error)")
+            }
+            return nil
+        }
+    }
+    
+    struct Decryptor: CustomStringConvertible {
+        var p: EncryptionParameters
+        
+        mutating func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8] {
+            //启用 CryptoKit
+            if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
+                let decrypted = try ChaChaPoly.open(.init(combined: p.currentIV+encryptedData), using: SymmetricKey(data: p.key), authenticating: []).bytes
+                p.sequenceNumber += 1
+                return decrypted
+            } else {
+                var authData: [UInt8] = []
+                authData.append(ContentType.applicationData.rawValue)
+                authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
+                authData.append(contentsOf: UInt16(encryptedData.count).bytes)
+            
+                let message = try CryptoKit.AES.GCM.open(.init(combined: p.currentIV + encryptedData), using: SymmetricKey(data: p.key), authenticating: authData).bytes
+                p.sequenceNumber += 1
+                return message
+            }
+        }
+        
+        var description: String {
+            return "Key: \(p.key.toHexString() ) IV: \(p.iv.toHexString() ?? "")"
         }
     }
 }

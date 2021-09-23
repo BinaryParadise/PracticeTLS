@@ -38,46 +38,23 @@ public class TLSHelloRetryRequest: TLSHandshakeMessage {
     }
     
     override func dataWithBytes() -> [UInt8] {
-        var bodyLength: UInt16 = 6
-        bodyLength += UInt16(random.count)
-        bodyLength += 1
-        bodyLength += UInt16(sessionID?.count ?? 0)
-        bodyLength += UInt16(cipherSuite.rawValue.bytes.count)
-        bodyLength += 1
-        
         let extBytes = extensions.reduce([], { r, ext in
             r + ext.dataWithBytes()
         })
         
-        if extBytes.count > 0 {
-            bodyLength += 2
-            bodyLength += UInt16(extBytes.count)
-        }
-        
         var bytes: [UInt8] = []
-        bytes.append(type.rawValue) // 1 byte
         bytes.append(contentsOf: version.rawValue.bytes) // 2 bytes
-        bytes.append(contentsOf: UInt16(bodyLength).bytes) // 2 bytes
-        
-        //内容
-        bytes.append(handshakeType.rawValue) // 1 byte
-        bytes.append(contentsOf: UInt(bodyLength-4).bytes[1...]) // 3 bytes
-        bytes.append(contentsOf: version.rawValue.bytes) // 2 bytes
-                
         bytes.append(contentsOf: random) // 32 bytes
-        
         bytes.append(UInt8(sessionID?.count ?? 0)) // 1 byte
         bytes.append(contentsOf: sessionID ?? []) // x bytes
-                
-        bytes.append(contentsOf: cipherSuite.rawValue.bytes) // 2 bytes
-        
+        bytes.append(contentsOf: cipherSuite.rawValue.bytes) // 2 bytes        
         bytes.append(compressionMethod.rawValue) // 1 byte
         
         if extBytes.count > 0 {
             bytes.append(contentsOf: UInt16(extBytes.count).bytes) // 2 bytes
             bytes.append(contentsOf: extBytes) // x bytes
         }
-        
+        writeHeader(data: &bytes)
         return bytes
     }
 }

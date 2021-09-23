@@ -138,6 +138,7 @@ public class TLSConnection: NSObject {
 
 extension TLSConnection: GCDAsyncSocketDelegate {
     public func socket(_ sock: GCDAsyncSocket, didRead data: Data, withTag tag: Int) {
+        LogInfo("\(Thread.current)")
         //处理粘包
         let stream = DataStream(data)
         while !stream.endOfStream {

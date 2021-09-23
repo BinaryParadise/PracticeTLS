@@ -252,6 +252,10 @@ extension HTTPServer: GCDAsyncSocketDelegate {
         }
     }
     
+    public func newSocketQueueForConnection(fromAddress address: Data, on sock: GCDAsyncSocket) -> DispatchQueue? {
+        return DispatchQueue(label: "socket queue", attributes: .init(rawValue: 0))
+    }
+    
     public func socket(_ sock: GCDAsyncSocket, didRead data: Data, withTag tag: Int) {
         LogDebug("\(tag)")
         httpResponse(sock, data: data)

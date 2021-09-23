@@ -106,23 +106,6 @@ class ECDHETests: XCTestCase {
         XCTAssertEqual(decrypted, plainData + [ContentType.handshake.rawValue]+[UInt8](repeating: 0, count: 12))
     }
     
-    func testEncrypt() throws {
-        let cipherData = "ACC38FA6984DAF133D663AAC91D2E74B3DEB28".uint8Array
-        let additionalData = "1703030013".uint8Array
-        let curReadIV = "85393AF3C9C639D42F8FDCEE".uint8Array
-        
-        let readKey = "9A56B41C32A72EBF5FB3AF206015ABAC".uint8Array
-        let readIV = "85393AF3C9C639D42F8FDCEE".uint8Array
-        
-        var ep = TLS1_3.RecordLayer.Decryptor(p: TLS1_3.RecordLayer.EncryptionParameters(cipherSuiteDecriptor: TLSCipherSuiteDescriptionDictionary[.TLS_AES_128_GCM_SHA256]!, key: readKey, iv: readIV))
-
-        XCTAssertEqual(curReadIV, ep.p.currentIV)
-        
-        let decrypted = try ep.decrypt(cipherData, contentType: .applicationData)
-        
-        XCTAssertNotNil(decrypted)
-    }
-    
     func testCalculatTranscript() throws {
         
         let TLSClientHello_512 = "010000dd0303a14716e42b77c47f8d8a1b89cbc9fbb4001bd8396a240dce51970009572400cf000028c02cc02bc024c023c00ac009cca9c030c02fc028c027c014c013cca8009d009c003d003c0035002f0100008cff0100010000000010000e00000b3139322e3136382e322e3100170000000d00140012040308040401050308050501080606010201000500050100000000337400000012000000100030002e0268320568322d31360568322d31350568322d313408737064792f332e3106737064792f3308687474702f312e31000b00020100000a00080006001d00170018".uint8Array
