@@ -325,6 +325,10 @@ public struct X509
         
         var data: [UInt8]
         
+        var publicKey: String {
+            return tbsCertificate.subjectPublicKeyInfo.subjectPublicKey.bits.toString()
+        }
+        
         var publicKeySigner: Signing? {
             let publicKeyInfo = tbsCertificate.subjectPublicKeyInfo
 

@@ -14,7 +14,7 @@ class EncryptedPreMasterSecret {
     init?(_ stream: DataStream) {
         guard let l = stream.readUInt16() else {return nil}
         encryptedPreMaster = stream.read(count: Int(l))!
-        let rsa = RSAEncryptor()
+        let rsa = RSAEncryptor.shared
         do {
             let preMasterSecret = try rsa.decryptData(data: encryptedPreMaster)
             self.preMasterKey = preMasterSecret

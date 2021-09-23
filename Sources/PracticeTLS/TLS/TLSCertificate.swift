@@ -10,7 +10,7 @@ import SecurityRSA
 
 extension Bundle {
     class func certBundle() -> Bundle {
-        return Bundle(path: "\(Bundle(for: TLSCertificate.self).resourcePath ?? "")/PracticeTLSTool_PracticeTLS.bundle") ?? .main
+        return Bundle(path: "\(Bundle(for: TLSCertificate.self).resourcePath ?? "")/PracticeTLS_SimpleHTTPServer.bundle") ?? .main
     }
 }
 

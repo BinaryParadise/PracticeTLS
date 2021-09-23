@@ -145,7 +145,7 @@ extension TLS1_3 {
         
         func sendCertificateVerify() {
             if context.negotiatedProtocolVersion == .V1_3 {
-                let signer = RSAEncryptor()
+                let signer = RSAEncryptor.shared
                 
                 var proofData = [UInt8](repeating: 0x20, count: 64)
                 proofData += TLS1_3.serverCertificateVerifyContext

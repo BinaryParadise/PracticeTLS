@@ -7,6 +7,7 @@
 
 import Foundation
 import CocoaAsyncSocket
+import SecurityRSA
 
 public protocol TLSConnectionDelegate {
     /// TLS握手完成
@@ -17,7 +18,14 @@ public protocol TLSConnectionDelegate {
 
 public class TLSSessionManager: NSObject {
     public static var shared = TLSSessionManager()
-    public var identity: Identity? = nil
+    public var identity: Identity? = nil {
+        willSet {
+            if let cert = newValue?.certificateChain.last {
+                
+                try? RSAEncryptor.shared.setup(publicPEM: String(contentsOfFile: Bundle.certBundle().path(forResource: "Cert/public.pem", ofType: nil)!), privatePEM: String(contentsOfFile: Bundle.certBundle().path(forResource: "Cert/private.pem", ofType: nil)!))
+            }
+        }
+    }
     var sessions: [String : TLSConnection] = [:]
     public var delegate: TLSConnectionDelegate?
     let sema = DispatchSemaphore(value: 1)
