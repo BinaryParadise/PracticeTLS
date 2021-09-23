@@ -69,15 +69,7 @@ extension TLS1_3 {
                     }
                 }
             case .alert:
-                var alert: TLSAlert?
-                if clientCipherChanged {
-                    if let d = try decrypt([UInt8](rawData[5...]), contentType: .alert) {
-                        alert = TLSAlert(stream: ([UInt8](rawData[0...4]) + d).stream, context: context)
-                    }
-                } else {
-                    alert = TLSAlert(stream: rawData.stream, context: context)
-                }
-                if let alert = alert {
+                if let alert = msg as? TLSAlert {
                     if alert.alertType == .closeNotify {
                         context.sock.disconnectAfterReadingAndWriting()
                     }
@@ -86,8 +78,9 @@ extension TLS1_3 {
                     LogError("alert未识别 -> \(rawData.count)")
                 }
             case .applicationData:
-                let appData = msg as! TLSApplicationData
-                if let decryptedData = try decrypt(appData.rawData, contentType: msg.contentType) {
+                do {
+                    let appData = msg as! TLSApplicationData
+                    let decryptedData = try decrypt(appData.rawData, contentType: msg.contentType)
                     if let contentType = ContentType(rawValue: decryptedData.last ?? 0) {
                         if contentType == .alert {
                             try didReadMessage(TLSAlert(stream: Array(decryptedData[0...1]).stream, context: context)!, rawData: decryptedData, unpack: true)
@@ -97,13 +90,14 @@ extension TLS1_3 {
                                 TLSSessionManager.shared.delegate?.didReadApplication(decryptedData.dropLast(), connection: context, tag: context.readWriteTag)
                             } else {
                                 if let newMsg = TLSMessage.fromData(data: decryptedData.dropLast(), context: context, contentType: contentType) {
-                                    try didReadMessage(newMsg, rawData: decryptedData, unpack: true)
+                                    try didReadMessage(newMsg, rawData: decryptedData.dropLast(), unpack: true)
                                 }
                             }
                         }
                     }
-                } else {
-                    LogInfo(description)
+                } catch {
+                    LogError("\(error)\n\(description)")
+                    context.sendMessage(msg: TLSAlert(alert: .badRecordMAC, alertLevel: .fatal))
                 }
             }
         }
@@ -230,35 +224,32 @@ extension TLS1_3 {
             }
         }
         
-        struct Decryptor {
+        struct Decryptor: CustomStringConvertible {
             var p: EncryptionParameters
             
-            mutating func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]? {
-                do {
+            mutating func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8] {
+                //启用 CryptoKit
+                if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
+                    let decrypted = try ChaChaPoly.open(.init(combined: p.currentIV+encryptedData), using: SymmetricKey(data: p.key), authenticating: []).bytes
+                    p.sequenceNumber += 1
+                    return decrypted
+                } else {
+                    let cipherData = Array(encryptedData[0..<encryptedData.count - p.cipherSuiteDecriptor.authTagSize])
+                    let authTag = Array(encryptedData[(encryptedData.count - p.cipherSuiteDecriptor.authTagSize)...])
                     
-                    //启用 CryptoKit
-                    if p.cipherSuiteDecriptor.bulkCipherAlgorithm == .chacha20 {
-                        let decrypted = try ChaChaPoly.open(.init(combined: p.currentIV+encryptedData), using: SymmetricKey(data: p.key), authenticating: []).bytes
-                        p.sequenceNumber += 1
-                        return decrypted
-                    } else {
-                        let cipherData = Array(encryptedData[0..<encryptedData.count - p.cipherSuiteDecriptor.authTagSize])
-                        let authTag = Array(encryptedData[(encryptedData.count - p.cipherSuiteDecriptor.authTagSize)...])
-                        
-                        var authData: [UInt8] = []
-                        authData.append(ContentType.applicationData.rawValue)
-                        authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
-                        authData.append(contentsOf: UInt16(encryptedData.count).bytes)
-                    
-                        let message = try CryptoKit.AES.GCM.open(.init(combined: p.currentIV + encryptedData), using: SymmetricKey(data: p.key), authenticating: authData).bytes
-                        p.sequenceNumber += 1
-                        return message
-                    }
-                } catch {
-                    //print("let cipherData: [UInt8] = \"\(encryptedData.toHexString())\".uint8Array")
-                    print("\(error)")
+                    var authData: [UInt8] = []
+                    authData.append(ContentType.applicationData.rawValue)
+                    authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
+                    authData.append(contentsOf: UInt16(encryptedData.count).bytes)
+                
+                    let message = try CryptoKit.AES.GCM.open(.init(combined: p.currentIV + encryptedData), using: SymmetricKey(data: p.key), authenticating: authData).bytes
+                    p.sequenceNumber += 1
+                    return message
                 }
-                return nil
+            }
+            
+            var description: String {
+                return "Key: \(p.key.toHexString() ) IV: \(p.iv.toHexString() ?? "")"
             }
         }
         
@@ -286,7 +277,7 @@ extension TLS1_3 {
             return encryptor.encrypt(data, contentType: contentType, iv: iv)
         }
         
-        func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]? {
+        func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8] {
             return try decryptor.decrypt(encryptedData, contentType: contentType)
         }
         
@@ -295,7 +286,8 @@ extension TLS1_3 {
         }
                 
         func changeReadKey(with trafficSecret: [UInt8]) {
-            decryptor = .init(p: handshakeState.neweEncryptionParameters(withTrafficSecret: trafficSecret, cipherSuite: context.cipherSuite))
+            decryptor = .init(p: handshakeState.neweEncryptionParameters(withTrafficSecret: trafficSecret, cipherSuite: context.cipherSuite))            
+            LogInfo("readkey changed: \(decryptor.description)")
         }
         
         func changeWriteKey(with trafficSecret: [UInt8]) {

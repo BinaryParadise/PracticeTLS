@@ -159,25 +159,15 @@ class ECDHETests: XCTestCase {
     }
     
     func testKeyLog() throws {
-        let priKey = "044bef0611e8b69fe2074e50d0c70280e8f01f3afb9516d25615650b6ea2cf81a520d9180aaaa000961fba06bb27a58e3d312c2f49fab526b6b4a5c0b352815b610c9f4009ae46c4bdf05e6a7d70ec8c8782b123551189261655c879fac682a580".uint8Array
-        let serverPubKey = "044bef0611e8b69fe2074e50d0c70280e8f01f3afb9516d25615650b6ea2cf81a520d9180aaaa000961fba06bb27a58e3d312c2f49fab526b6b4a5c0b352815b61".uint8Array
-        let clientPubKey = "04829616ef4bf8abdb10f11091c56f79c626acbfce6dab46183c4df81caf3f6493de6f78131d16b76010f9e8b519ce9e59038c999755ee5e8f65871fccfc302b28".uint8Array
-        let clientRandom = "c5b1d78ecaafe61524e9c789d5f33e48dfb1a5864a4c9932433b3009c80dc808".uint8Array
-        let serverRandom = "26fac27ae85bf72b0c3f314dd623400ae4a6f8577acc90cbc2358b6f729f5ffc".uint8Array
-        let transcriptHash = "76be86c747737f27d068d603f9df4d2695eb857ecb2ea969e46121d9778c54ca".uint8Array
-        let clientHandshakeTrafficSecret = "45b7da6c8866e595843551244b3aca6d865e94c5d80b09c3137aa03c7885666f".uint8Array
-        let serverHandshakeTrafficSecret = "e792255d4a54ab6dd3ad61c1f052da803077f68cd4d357c7baf7249090fa59bb".uint8Array
+        let handshakeSecret = "6F8063C71AD6DBDD12350FE0E884E960654A90C456570D50498EC085A1C572E1".uint8Array
+        let clientTrafficeSecret = "60EC2A9E8F56EAFE8EABA14A1A72F361AAAF916C2474561D417016A2C41BA2DC".uint8Array
+        let readKey = "C61D9580779142C27BA1903BA5D0FF3E".uint8Array
+        let readIV = "110D22ADC323BC871DC3CD22".uint8Array
         
-        let conn = TLSConnection(GCDAsyncSocket())
-        let record = TLS1_3.RecordLayer(conn)
-        conn.record = record
-        record.setPendingSecurityParametersForCipherSuite(.TLS_AES_128_GCM_SHA256)
-        conn.keyExchange = .ecdha(try .init(priKey, group: .secp256r1))
-        conn.preMasterKey = clientPubKey
+        let cipherDesc = TLSCipherSuiteDescriptionDictionary[.TLS_AES_128_GCM_SHA256]
+        let hs = TLS1_3.HandshakeState(.sha256).neweEncryptionParameters(withTrafficSecret: clientTrafficeSecret, cipherSuite: .TLS_AES_128_GCM_SHA256)
         
-        record.derivedSecret(transcriptHash)
-        
-        XCTAssertEqual(record.handshakeState.clientHandshakeTrafficSecret?.toHexString(), "45b7da6c8866e595843551244b3aca6d865e94c5d80b09c3137aa03c7885666f")
-        XCTAssertEqual(record.handshakeState.serverHandshakeTrafficSecret?.toHexString(), "e792255d4a54ab6dd3ad61c1f052da803077f68cd4d357c7baf7249090fa59bb")
+        XCTAssertEqual(hs.key, readKey)
+        XCTAssertEqual(hs.iv, readIV)
     }
 }

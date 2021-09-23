@@ -8,7 +8,7 @@
 import Foundation
 import CryptoSwift
 
-public var selectedCurve: NamedGroup = .secp256r1
+public var selectedCurve: NamedGroup = .x25519
 
 public enum ContentType: UInt8 {
     case changeCipherSpec = 20
@@ -443,7 +443,7 @@ protocol Encryptable {
 }
 
 protocol Decryptable {
-    func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]?
+    func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]
 }
 
 protocol TLSRecordProtocol: Encryptable, Decryptable {

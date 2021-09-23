@@ -106,8 +106,8 @@ public class HTTPServer: NSObject {
     func indexCSS(_ connection: TLSConnection, h2: Bool = false) -> String {
         let content = """
         body {
-            background-color: #f013ef;
-            color: #CCCCCC;
+            background-color: #000000;
+            color: #f013ef;
         }
         """
         

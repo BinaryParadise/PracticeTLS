@@ -51,6 +51,7 @@ swift package init
 [TLS 1.3 Handshake Protocol](https://github.com/halfrost/Halfrost-Field/blob/master/contents/Protocol/TLS_1.3_Handshake_Protocol.md)
 [ChaCha20-Poly1305 Cipher Suites for Transport Layer Security (TLS)](https://datatracker.ietf.org/doc/html/rfc7905)
 [TLS1.3---密钥的计算...](https://blog.csdn.net/qq_35324057/article/details/105792293)
+[HTTPS 温故知新（五） —— TLS 中的密钥计算](https://halfrost.com/https-key-cipher/)
 
 ## 扩展
 
