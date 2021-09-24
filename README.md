@@ -4,6 +4,8 @@
 
 > 理论知识详见参考资料或自行谷歌，本文仅实现TLS 1.2协议
 
+调试工具: NSS Key Log & Wireshark
+
 ## 步骤
 
 ### 一、创建项目
@@ -48,6 +50,8 @@ swift package init
 [图解 ECDHE 密钥交换算法](https://www.cnblogs.com/xiaolincoding/p/14318338.html)
 [TLS 1.3 Handshake Protocol](https://github.com/halfrost/Halfrost-Field/blob/master/contents/Protocol/TLS_1.3_Handshake_Protocol.md)
 [ChaCha20-Poly1305 Cipher Suites for Transport Layer Security (TLS)](https://datatracker.ietf.org/doc/html/rfc7905)
+[TLS1.3---密钥的计算...](https://blog.csdn.net/qq_35324057/article/details/105792293)
+[HTTPS 温故知新（五） —— TLS 中的密钥计算](https://halfrost.com/https-key-cipher/)
 
 ## 扩展
 

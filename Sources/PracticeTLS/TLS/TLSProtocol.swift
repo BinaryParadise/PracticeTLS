@@ -8,11 +8,13 @@
 import Foundation
 import CryptoSwift
 
+public var selectedCurve: NamedGroup = .x25519 //Firefox 92.0 默认支持x25519、secp256r1
+
 public enum ContentType: UInt8 {
     case changeCipherSpec = 20
     case alert            = 21
-    case handeshake       = 22
-    case applicatonData   = 23
+    case handshake       = 22
+    case applicationData   = 23
 }
 
 /// 消息类型
@@ -27,8 +29,8 @@ public enum TLSMessageType {
         switch type {
         case .changeCipherSpec: self = .changeCipherSpec
         case .alert: self = .alert
-        case .handeshake: self = .handshake(.clientHello)
-        case .applicatonData: self = .applicationData
+        case .handshake: self = .handshake(.clientHello)
+        case .applicationData: self = .applicationData
         }
     }
     
@@ -37,11 +39,11 @@ public enum TLSMessageType {
         case .changeCipherSpec:
             return ContentType.changeCipherSpec.rawValue
         case .handshake(_):
-            return ContentType.handeshake.rawValue
+            return ContentType.handshake.rawValue
         case .alert:
             return ContentType.alert.rawValue
         case .applicationData:
-            return ContentType.applicatonData.rawValue
+            return ContentType.applicationData.rawValue
         }
     }
 }
@@ -105,6 +107,8 @@ public enum TLSHandshakeType: UInt8 {
     // TLS 1.3
     case helloRetryRequest  = 6
     case encryptedExtensions = 8
+    
+    case messageHash = 254
 }
 
 enum TLSExtensionType: UInt16 {
@@ -145,11 +149,14 @@ func TLSExtensionsfromData(_ data: [UInt8], messageType: TLSMessageExtensionType
             if let type = TLSExtensionType(rawValue: b) {
                 switch type {
                 case .supported_versions:
-                    let vers = TLSSupportedVersionsExtension(stream: stream)!
-                    //启用TLS 1.3
-                    #if true
-                    exts.append(vers)
+                    var vers = TLSSupportedVersionsExtension(stream: stream)!
+                    // 禁用TLS 1.3
+                    #if false
+                    vers.versions.removeAll { v in
+                        v == .V1_3
+                    }
                     #endif
+                    exts.append(vers)
                 case .key_share:
                     exts.append(TLSKeyShareExtension(stream: stream, messageType: messageType)!)
                 default:
@@ -168,8 +175,8 @@ struct TLSSupportedVersionsExtension: Streamable, TLSExtension {
     var length: UInt16
     var versions: [TLSVersion] = []
     
-    init() {
-        versions.append(.V1_3)
+    init(_ version: TLSVersion) {
+        versions.append(version)
         length = 2
     }
     
@@ -234,7 +241,7 @@ struct TLSKeyShareExtension: Streamable, TLSExtension {
         case .helloRetryRequest:
             keyShare = .helloRetryRequest(.secp256r1)
         default:
-            keyShare = .helloRetryRequest(.x25519)
+            keyShare = .helloRetryRequest(selectedCurve)
         }
     }
     
@@ -335,25 +342,32 @@ extension TLS1_3 {
         var sessionResumptionSecret: [UInt8]?
         var resumptionBinderSecret: [UInt8]?
         var selectedIdentity: UInt16?
-        var hashAlgorithm: HashAlgorithm = .sha256
+        var hashAlgorithm: HashAlgorithm
+        var handshakeTranscriptionHash: [UInt8] = []
+        
+        init(_ hashAlgorithm: HashAlgorithm = .sha256) {
+            self.hashAlgorithm = hashAlgorithm
+            deriveEarlySecret()
+        }
                                 
         func deriveHandshakeSecret(with sharedSecret: [UInt8], transcriptHash: [UInt8]) {
+            handshakeTranscriptionHash = transcriptHash
             let derivedSecret = Derive_Secret(secret: earlySecret!, label: derivedLabel, transcriptHash: hashAlgorithm.hashFunction([]))
             handshakeSecret = HKDF_Extract(salt: derivedSecret, inputKeyingMaterial: sharedSecret)
                         
-            let clientHandshakeSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.clientHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)
-            let serverHandshakeSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.serverHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)
-            
-            clientHandshakeTrafficSecret = clientHandshakeSecret
-            serverHandshakeTrafficSecret = serverHandshakeSecret
+            clientHandshakeTrafficSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.clientHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)
+            serverHandshakeTrafficSecret = Derive_Secret(secret: handshakeSecret!, label: TLS1_3.serverHandshakeTrafficSecretLabel, transcriptHash: transcriptHash)            
         }
         
         // TLS 1.3 uses HKDF to derive its key material
-        func HKDF_Extract(salt: [UInt8], inputKeyingMaterial: [UInt8]) -> [UInt8] {
-            return hashAlgorithm.hmac(salt, inputKeyingMaterial)
+        internal func HKDF_Extract(salt: [UInt8], inputKeyingMaterial: [UInt8]) -> [UInt8] {
+            let HMAC = hashAlgorithm.hmac
+            return HMAC(salt, inputKeyingMaterial)
         }
         
-        func HKDF_Expand(prk: [UInt8], info: [UInt8], outputLength: Int) -> [UInt8] {
+        internal func HKDF_Expand(prk: [UInt8], info: [UInt8], outputLength: Int) -> [UInt8] {
+            let HMAC = hashAlgorithm.hmac
+            
             let hashLength = hashAlgorithm.hashLength
             
             let n = Int(ceil(Double(outputLength)/Double(hashLength)))
@@ -361,7 +375,7 @@ extension TLS1_3 {
             var output : [UInt8] = []
             var roundOutput : [UInt8] = []
             for i in 0..<n {
-                roundOutput = hashAlgorithm.hmac(prk, roundOutput + info + [UInt8(i + 1)])
+                roundOutput = HMAC(prk, roundOutput + info + [UInt8(i + 1)])
                 output += roundOutput
             }
             
@@ -369,11 +383,13 @@ extension TLS1_3 {
         }
         
         func HKDF_Expand_Label(secret: [UInt8], label: [UInt8], hashValue: [UInt8], outputLength: Int) -> [UInt8] {
-            
-            let label = tls1_3_prefix + label
-            var hkdfLabel = [UInt8((outputLength >> 8) & 0xff), UInt8(outputLength & 0xff)]
-            hkdfLabel += [UInt8(label.count)] + label
-            hkdfLabel += [UInt8(hashValue.count)] + hashValue
+            let newLabel = tls1_3_prefix + label
+            var hkdfLabel: [UInt8] = []
+            hkdfLabel.append(contentsOf: UInt16(outputLength).bytes)
+            hkdfLabel.append(UInt8(newLabel.count))
+            hkdfLabel.append(contentsOf: newLabel)
+            hkdfLabel.append(UInt8(hashValue.count))
+            hkdfLabel.append(contentsOf: hashValue)
             
             return HKDF_Expand(prk: secret, info: hkdfLabel, outputLength: outputLength)
         }
@@ -382,26 +398,62 @@ extension TLS1_3 {
             return HKDF_Expand_Label(secret: secret, label: label, hashValue: transcriptHash, outputLength: transcriptHash.count)
         }
 
-        func deriveEarlySecret() {
+        private func deriveEarlySecret() {
             let zeroes = [UInt8](repeating: 0, count: hashAlgorithm.hashLength)
             earlySecret = HKDF_Extract(salt: zeroes, inputKeyingMaterial: preSharedKey ?? zeroes)
         }
         
-        func deriveEarlyTrafficSecret(transcriptHash: [UInt8]) {
-            clientEarlyTrafficSecret = Derive_Secret(secret: earlySecret!, label: TLS1_3.clientEarlyTrafficSecretLabel, transcriptHash: transcriptHash)
+        func deriveFinishedKey(secret: [UInt8]) -> [UInt8] {
+            let hashLength = hashAlgorithm.hashLength
+            let finishedKey = HKDF_Expand_Label(secret: secret, label: finishedLabel, hashValue: [], outputLength: hashLength)
+            
+            return finishedKey
+        }
+        
+        func deriveApplicationTrafficSecrets(transcriptHash: [UInt8]) {
+            let zeroes = [UInt8](repeating: 0, count: hashAlgorithm.hashLength)
+            
+            let derivedSecret = Derive_Secret(secret: handshakeSecret!, label: derivedLabel, transcriptHash: hashAlgorithm.hashFunction([]))
+
+            masterSecret = HKDF_Extract(salt: derivedSecret, inputKeyingMaterial: zeroes)
+            
+            clientTrafficSecret = Derive_Secret(secret: masterSecret!, label: TLS1_3.clientApplicationTrafficSecretLabel, transcriptHash: transcriptHash)
+            serverTrafficSecret = Derive_Secret(secret: masterSecret!, label: TLS1_3.serverApplicationTrafficSecretLabel, transcriptHash: transcriptHash)
+        }
+        
+        func neweEncryptionParameters(withTrafficSecret trafficSecret: [UInt8], cipherSuite: CipherSuite) -> EncryptionParameters {
+            guard let cipherSuiteDescriptor = TLSCipherSuiteDescriptionDictionary[cipherSuite]
+                else {
+                fatalError("Unsupported cipher suite \(cipherSuite)")
+            }
+            
+            let ivSize = cipherSuiteDescriptor.fixedIVLength
+            let keySize = cipherSuiteDescriptor.bulkCipherAlgorithm.keySize
+            
+            // calculate traffic keys and IVs as of RFC 8446 Section 7.3 Traffic Key Calculation
+            let key = HKDF_Expand_Label(secret: trafficSecret, label: keyLabel,  hashValue: [], outputLength: keySize)
+            let iv  = HKDF_Expand_Label(secret: trafficSecret, label: ivLabel, hashValue: [], outputLength: ivSize)
+            return EncryptionParameters(cipherSuiteDecriptor: cipherSuiteDescriptor, key: key, iv: iv)
         }
     }
 }
 
-protocol TLSRecordProtocol {
-    var cipherChanged: Bool { get set}
-    var s: TLSSecurityParameters! { get set}
+protocol Encryptable {
+    func encrypt(_ data: [UInt8], contentType: ContentType, iv: [UInt8]?) -> [UInt8]?
+}
+
+protocol Decryptable {
+    func decrypt(_ encryptedData: [UInt8], contentType: ContentType) throws -> [UInt8]
+}
+
+protocol TLSRecordProtocol: Encryptable, Decryptable {
+    var clientCipherChanged: Bool { get set }
+    var serverCipherChanged: Bool { get set }
+    var s: TLSSecurityParameters! { get set }
     init(_ context: TLSConnection)
-    func didReadMessage(_ msg: TLSMessage, rawData: [UInt8]) throws
+    func didReadMessage(_ msg: TLSMessage, rawData: [UInt8], unpack: Bool) throws
     func didWriteMessage(_ tag: RWTags) -> RWTags?
-    func derivedSecret()
+    func derivedSecret(_ transcriptHash: [UInt8]?)
     func keyExchange(algorithm: KeyExchangeAlgorithm, preMasterSecret: [UInt8])
-    func encrypt(_ data: [UInt8], contentType: TLSMessageType, iv: [UInt8]?) -> [UInt8]?
-    func decrypt(_ encryptedData: [UInt8], contentType: TLSMessageType) throws -> [UInt8]?
     func setPendingSecurityParametersForCipherSuite(_ cipherSuite : CipherSuite)
 }

@@ -14,7 +14,7 @@ public class TLSClientHello: TLSHandshakeMessage {
     var compressionMethod: CompressionMethod = .null
     var extensions: [TLSExtension] = []
     var keyExchange: [UInt8] {
-        return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: .x25519)?.keyExchange ?? []
+        return (extend(.key_share) as? TLSKeyShareExtension)?.entry(nameGroup: selectedCurve)?.keyExchange ?? []
     }
 
     public override init?(stream: DataStream, context: TLSConnection) {
@@ -47,13 +47,13 @@ public class TLSClientHello: TLSHandshakeMessage {
             extensions = TLSExtensionsfromData(bytes, messageType: .clientHello)
         }
         
-        if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) != nil {
+        if (extend(.supported_versions) as? TLSSupportedVersionsExtension)?.versions.contains(.V1_3) ?? false {
             if keyExchange.count == 0 {
                 nextMessage = TLSHelloRetryRequest(client: self, context: context)                
             } else {                
                 nextMessage = TLSServerHello(client: self, context: context)
             }
-        } else {
+        } else {            
             nextMessage = TLSServerHello(client: self, context: context)
         }
         context.nextMessage = nextMessage

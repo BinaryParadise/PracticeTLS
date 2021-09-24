@@ -42,14 +42,11 @@ class TLSCertificateVerify: TLSHandshakeMessage {
     }
     
     override func dataWithBytes() -> [UInt8] {
-        var bytes: [UInt8] = []
-        bytes.append(type.rawValue)
-        bytes.append(contentsOf: version.rawValue.bytes)
-        bytes.append(contentsOf: UInt16(signature.count-4).bytes)
-        
-        bytes.append(handshakeType.rawValue)
-        bytes.append(contentsOf: signature.count.bytes[1...])
+        var bytes: [UInt8] = []        
+        bytes.append(contentsOf: algorithm.rawValue.bytes)
+        bytes.append(contentsOf: UInt16(signature.count).bytes)
         bytes.append(contentsOf: signature)
+        writeHeader(data: &bytes)
         return bytes
     }
 }

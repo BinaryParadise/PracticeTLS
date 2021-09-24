@@ -16,27 +16,16 @@ public class TLSHandshakeMessage: TLSMessage {
             fatalError("")
         }
     }
-    var clientVersion: TLSVersion = .V1_2
-    var encrypted: [UInt8] = []
     
-    init(_ type: TLSHandshakeType = .clientHello) {
-        super.init(.handshake(type))
+    init(_ type: TLSHandshakeType, context: TLSConnection? = nil) {
+        super.init(.handshake(type), context: context)
     }
     
     public override init?(stream: DataStream, context: TLSConnection) {
+        guard let handshakeType = TLSHandshakeType(rawValue: stream.readByte() ?? UInt8.max) else { return nil}
         super.init(stream: stream, context: context)
-        type = .handshake(TLSHandshakeType(rawValue: stream.readByte() ?? UInt8.max) ?? .clientHello)
+        type = .handshake(handshakeType)
         stream.readUInt24()
-    }
-    
-    override func dataWithBytes() -> [UInt8] {
-        var bytes: [UInt8] = []
-        bytes.append(type.rawValue)
-        bytes.append(contentsOf: version.rawValue.bytes)
-        bytes.append(contentsOf: UInt16(encrypted.count).bytes)
-        
-        bytes.append(contentsOf: encrypted)
-        return bytes
     }
     
     class func handshakeMessageFromData(data: [UInt8], context: TLSConnection) -> TLSMessage? {
@@ -66,14 +55,20 @@ public class TLSHandshakeMessage: TLSMessage {
             break
         case .clientKeyExchange:
             message = TLSClientKeyExchange(stream: data.stream, context: context)
-        case .encryptedExtensions, .finished:
+        case .finished:
+            message = TLSFinished(stream: data.stream, context: context)
+        case .encryptedExtensions, .messageHash:
             break
         }
         return message
     }
     
+    func writeHeader(data: inout [UInt8]) {
+        data.insert(contentsOf: UInt(data.count).bytes[1...3], at: 0)
+        data.insert(handshakeType.rawValue, at: 0)
+    }
+    
     class func readHeader(stream: DataStream) -> (type: TLSHandshakeType, bodyLength: Int)? {
-        _ = stream.read(count: 5)
         if let type = stream.readByte(),
            let handshakeType = TLSHandshakeType(rawValue: type),
            let bodyLength = stream.readUInt24(), bodyLength > 0 {

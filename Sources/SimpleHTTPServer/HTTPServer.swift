@@ -77,7 +77,7 @@ public class HTTPServer: NSObject {
         <pre>
         Date: \(Date())
         Connection from: \(connection.sock.connectedHost ?? "")
-        TLS Version: \(connection.version.description)
+        TLS Version: \(connection.negotiatedProtocolVersion.description)
         Cipher Suite: \(connection.cipherSuite)
         
         Your Request:
@@ -106,8 +106,8 @@ public class HTTPServer: NSObject {
     func indexCSS(_ connection: TLSConnection, h2: Bool = false) -> String {
         let content = """
         body {
-            background-color: #f013ef;
-            color: #CCCCCC;
+            background-color: #000000;
+            color: #f013ef;
         }
         """
         
@@ -250,6 +250,10 @@ extension HTTPServer: GCDAsyncSocketDelegate {
         } else {
             newSocket.readData(withTimeout: -1, tag: 0)
         }
+    }
+    
+    public func newSocketQueueForConnection(fromAddress address: Data, on sock: GCDAsyncSocket) -> DispatchQueue? {
+        return DispatchQueue(label: "socket queue", attributes: .init(rawValue: 0))
     }
     
     public func socket(_ sock: GCDAsyncSocket, didRead data: Data, withTag tag: Int) {

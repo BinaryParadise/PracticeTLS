@@ -19,7 +19,7 @@ public class TLSConnection: NSObject {
     public var sock: GCDAsyncSocket
     var nextMessage: TLSMessage?
     var preMasterKey: [UInt8] = []
-    var handshakeMessages: [TLSMessage] = []
+    var handshakeMessages: [TLSHandshakeMessage] = []
     public var version: TLSVersion = .V1_2
     public var cipherSuite: CipherSuite = .TLS_RSA_WITH_AES_128_GCM_SHA256
     var maximumRecordSize: Int = 2048
@@ -35,17 +35,31 @@ public class TLSConnection: NSObject {
     var keyExchange: TLSKeyExchange = .rsa
     private var _record: TLSRecordProtocol?
     var record: TLSRecordProtocol!
+    public var negotiatedProtocolVersion: TLSVersion = .V1_2
     
     var transcriptHash: [UInt8] {
         var handshakeData: [UInt8] = []
         for msg in handshakeMessages {
-            let d = msg.messageData()
-            //print("//\(msg.type) => \(d.count) \(d.toHexString())")
-            handshakeData.append(contentsOf: d)
-            // TODO: Check for special construct when a HelloRetryRequest is included
-            // see section 4.4.1 "The Transcript Hash" in RFC 8446
+            
+            if negotiatedProtocolVersion == .V1_3 {
+                // TODO: Check for special construct when a HelloRetryRequest is included
+                // see section 4.4.1 "The Transcript Hash" in RFC 8446
+                // 踩坑: ⚠️⚠️⚠️
+                if msg is TLSHelloRetryRequest {
+                    let hashLength = record.s.hashAlgorithm.hashLength
+                    let hashValue = record.s.hashAlgorithm.hashFunction(handshakeData)
+                    
+                    handshakeData = [TLSHandshakeType.messageHash.rawValue, 0, 0, UInt8(hashLength)] + hashValue
+                    LogWarn("hashed => \(handshakeData.count)")
+                }
+            }
+            
+            handshakeData.append(contentsOf: msg.dataWithBytes())
         }
-        return record.s.hashAlgorithm.hashFunction(handshakeData.dropLast(0))
+        LogWarn(handshakeMessages.map { msg in
+            "\(msg)_\(msg.dataWithBytes().count)"
+        }.joined(separator: ", "))
+        return record.s.hashAlgorithm.hashFunction(handshakeData)
     }
     
     init(_ sock: GCDAsyncSocket) {
@@ -60,10 +74,10 @@ public class TLSConnection: NSObject {
         sock.readData(tag: .handshake(.clientHello))
     }
     
-    func verifyDataForFinishedMessage(isClient: Bool) -> TLSFinished {
+    func verifyDataForFinishedMessage(isClient: Bool) -> [UInt8] {
         let finishedLabel = isClient ? TLSClientFinishedLabel : TLSServerFinishedLabel
         let verifyData = record.s.PRF(secret: record.s.masterSecret, label: finishedLabel, seed: transcriptHash, outputLength: 12)
-        return TLSFinished(verifyData)
+        return verifyData
     }
     
     public func disconnect() {
@@ -80,21 +94,33 @@ public class TLSConnection: NSObject {
     
     public func writeApplication(data: [UInt8], tag: Int) {
         readWriteTag = tag
-        sendData(TLSApplicationData(data, context: self).dataWithBytes(), tag: .applicationData)
+        sendMessage(msg: TLSApplicationData(plantData: data))
     }
     
-    func decryptAndVerifyMAC(contentType : TLSMessageType, data : [UInt8]) throws -> [UInt8]? {
+    func decryptAndVerifyMAC(contentType : ContentType, data : [UInt8]) throws -> [UInt8]? {
         return try record.decrypt(data, contentType: contentType)
     }
         
     func sendMessage(msg: TLSMessage?) {
         guard let msg = msg else { return }
-        let data: [UInt8] = record.cipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
-        nextMessage = msg.nextMessage
-        if msg is TLSHandshakeMessage {
-            handshakeMessages.append(msg)
+        var prepareData: [UInt8] = []
+        if record.serverCipherChanged {
+            prepareData.write(ContentType.applicationData.rawValue)
+        } else {
+            prepareData.write(msg.contentType.rawValue)
         }
-        sendData(data, tag: msg.rwtag)
+        prepareData.write(version.rawValue.bytes)
+        let contentData = record.serverCipherChanged ? TLSApplicationData(msg, context: self).dataWithBytes() : msg.dataWithBytes()
+        prepareData.write(UInt16(contentData.count).bytes)
+        
+        prepareData.write(contentData)
+        
+        nextMessage = msg.nextMessage
+        if let handshake =  msg as? TLSHandshakeMessage {
+            handshakeMessages.append(handshake)
+        }
+        
+        sendData(prepareData, tag: msg.rwtag)
     }
     
     func sendData(_ sendData: [UInt8], tag: RWTags) {
@@ -123,8 +149,13 @@ extension TLSConnection: GCDAsyncSocketDelegate {
                 if stream.endOfStream {
                     lastPacket = true
                 }
-                do {
-                    try record.didReadMessage(msg, rawData: rawData)
+                do {                    
+                    if let handshake =  msg as? TLSHandshakeMessage {
+                        if !record.clientCipherChanged {
+                            handshakeMessages.append(handshake)
+                        }
+                    }
+                    try record.didReadMessage(msg, rawData: rawData, unpack: false)
                 } catch {
                     LogError("\(error)")
                 }

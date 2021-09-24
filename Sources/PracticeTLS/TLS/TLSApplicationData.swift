@@ -8,39 +8,29 @@
 import Foundation
 
 class TLSApplicationData: TLSMessage {
-    var encryptedData: [UInt8] = []
     
     init(plantData: [UInt8]) {
-        encryptedData = plantData
         super.init(.applicationData)
+        rawData = plantData
     }
     
     init(_ data: [UInt8], context: TLSConnection) {
-        if context.record.cipherChanged, let ed = context.record.encrypt(data, contentType: .applicationData, iv: nil) {
-            encryptedData = ed
-        }
         super.init(.applicationData)
+        if context.record.serverCipherChanged, let ed = context.record.encrypt(data, contentType: .applicationData, iv: nil) {
+            rawData = ed
+        }
     }
     
     init(_ msg: TLSMessage, context: TLSConnection) {
-        if context.record.cipherChanged, let ed = context.record.encrypt(msg.messageData(), contentType: msg.type, iv: nil) {
-            encryptedData = ed
+        super.init(.applicationData)        
+        if context.record.serverCipherChanged, let ed = context.record.encrypt(msg.dataWithBytes(), contentType: msg.contentType, iv: nil) {
+            rawData = ed
         }
-        super.init(.applicationData)
         nextMessage = msg.nextMessage
     }
     
     override init?(stream: DataStream, context: TLSConnection) {
-        super.init(stream: stream, context: context)
-        encryptedData = stream.readToEnd() ?? []
-    }
-    
-    override func dataWithBytes() -> [UInt8] {
-        var bytes: [UInt8] = []
-        bytes.append(type.rawValue)
-        bytes.append(contentsOf: version.rawValue.bytes)
-        bytes.append(contentsOf: UInt16(encryptedData.count).bytes)
-        bytes.append(contentsOf: encryptedData)
-        return bytes
+        super.init(.applicationData, context: context)
+        rawData = stream.readToEnd() ?? []
     }
 }
