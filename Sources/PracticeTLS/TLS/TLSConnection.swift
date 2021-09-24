@@ -35,7 +35,7 @@ public class TLSConnection: NSObject {
     var keyExchange: TLSKeyExchange = .rsa
     private var _record: TLSRecordProtocol?
     var record: TLSRecordProtocol!
-    var negotiatedProtocolVersion: TLSVersion = .V1_2
+    public var negotiatedProtocolVersion: TLSVersion = .V1_2
     
     var transcriptHash: [UInt8] {
         var handshakeData: [UInt8] = []

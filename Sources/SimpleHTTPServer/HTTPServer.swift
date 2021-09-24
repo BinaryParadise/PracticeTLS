@@ -77,7 +77,7 @@ public class HTTPServer: NSObject {
         <pre>
         Date: \(Date())
         Connection from: \(connection.sock.connectedHost ?? "")
-        TLS Version: \(connection.version.description)
+        TLS Version: \(connection.negotiatedProtocolVersion.description)
         Cipher Suite: \(connection.cipherSuite)
         
         Your Request:

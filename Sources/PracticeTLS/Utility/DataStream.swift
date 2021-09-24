@@ -121,6 +121,12 @@ extension UInt {
     }
 }
 
+extension Int64 {
+    public var bytes: [UInt8] {
+        return UInt64(self).bytes
+    }
+}
+
 extension UInt64 {
     public var bytes: [UInt8] {
         return [UInt8(truncatingIfNeeded: self >> 56),
