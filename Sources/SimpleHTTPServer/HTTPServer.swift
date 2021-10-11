@@ -38,8 +38,10 @@ enum RWTags {
 
 public class HTTPServer: NSObject {
     var socket: GCDAsyncSocket?
+    var quicSock: GCDAsyncUdpSocket?
     var terminated = false
     var tlsEnabled: Bool = false
+    var quicEnabled: Bool = false
     var nextFrame: H2.Frame?
     
     public init(_ identity: PEMFileIdentity? = nil) {
@@ -51,19 +53,34 @@ public class HTTPServer: NSObject {
         socket?.isIPv6Enabled = false
     }
     
-    @discardableResult public func start(port: UInt16) -> Self {
+    @discardableResult public func start(port: UInt16, quic: Bool = false) -> Self {
         do {
             try socket?.accept(onPort: port)
+            print("start tcp on:\(port)")
+            if quic {
+                quicEnabled = quic
+                quicSock = GCDAsyncUdpSocket(delegate: self, delegateQueue: DispatchQueue.main, socketQueue: DispatchQueue(label: "udp socket queue", attributes: .init(rawValue: 0)))
+                quicSock?.setIPv6Enabled(false)
+                try quicSock?.bind(toPort: port)
+                try quicSock?.beginReceiving()
+            }
+            print("start udp on:\(port)")
         } catch {
             LogError(error.localizedDescription)
         }
-        print("start on:\(port)")
         return self
     }
     
     @discardableResult public func wait() -> Bool {
         CFRunLoopRun()
         return false
+    }
+    
+    func altSvc() -> String {
+        let port = (socket?.localPort ?? 0)
+        return """
+        Alt-Svc: h3=":\(port)"
+        """
     }
     
     func index(_ connection: TLSConnection, requestHeaders: String, h2: Bool = false) -> String {
@@ -90,16 +107,32 @@ public class HTTPServer: NSObject {
         if h2 {
             return content
         }
+        var response = ["HTTP/1.1 200 OK"]
+        if quicEnabled {
+            response.append(altSvc())
+        }
+        response.append("Content-Length: \(content.bytes.count)")
+        response.append("Connection: keep-alive")
+        response.append("Content-Type: text/html; charset=utf-8")
+        response.append("Server: PracticeTLS")
+        return response.joined(separator: "\r\n")
+            .appending("\r\n\r\n")
+            .appending(content)
+    }
+    
+    func favicon(_ connection: TLSConnection, h2: Bool = false) -> [UInt8] {
+        if h2 {
+            return []
+        }
         let response = """
-            HTTP/1.1 200 OK
-            Content-Length: \(content.bytes.count)
+            HTTP/1.1 404 OK
+            Content-Length: \(0)
             Connection: keep-alive
-            Content-Type: text/html; charset=utf-8
+            Content-Type: image/x-icon
             Server: PracticeTLS
             """
             .replacingOccurrences(of: "\n", with: "\r\n")
-            .appending("\r\n\r\n")
-            .appending(content)
+            .appending("\r\n\r\n").bytes
         return response
     }
     
@@ -114,17 +147,17 @@ public class HTTPServer: NSObject {
         if h2 {
             return content
         }
-        let response = """
-            HTTP/1.1 200 OK
-            Content-Length: \(content.bytes.count)
-            Connection: keep-alive
-            Content-Type: text/css; charset=utf-8
-            Server: PracticeTLS
-            """
-            .replacingOccurrences(of: "\n", with: "\r\n")
+        var response = ["HTTP/1.1 200 OK"]
+        if quicEnabled {
+            response.append(altSvc())
+        }
+        response.append("Content-Length: \(content.bytes.count)")
+        response.append("Connection: keep-alive")
+        response.append("Content-Type: text/css; charset=utf-8")
+        response.append("Server: PracticeTLS")
+        return response.joined(separator: "\r\n")
             .appending("\r\n\r\n")
             .appending(content)
-        return response
     }
 }
 
@@ -168,7 +201,7 @@ extension HTTPServer: TLSConnectionDelegate {
     
     public func didReadApplication(_ data: [UInt8], connection: TLSConnection, tag: Int) {
         let rtag = RWTags(rawValue: UInt8(tag))
-        LogDebug("\(rtag)")
+        LogInfo("\(rtag)")
         switch rtag {
         case .http1_1:
             let headers = String(data: Data(data) , encoding: .utf8)?.components(separatedBy: "\r\n\r\n").first ?? ""
@@ -176,6 +209,8 @@ extension HTTPServer: TLSConnectionDelegate {
             LogInfo("GET \(path)")
             if path == "/index.css" {
                 connection.write(indexCSS(connection).bytes, tag: .http1_1)
+            } else if path == "/favicon.ico" {
+                connection.write(favicon(connection), tag: .http1_1)
             } else {
                 connection.write(index(connection, requestHeaders: headers).bytes, tag: .http1_1)
             }
@@ -289,6 +324,13 @@ extension HTTPServer: GCDAsyncSocketDelegate {
     
     public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
         LogInfo("\(err)")
+    }
+}
+
+// QUIC
+extension HTTPServer: GCDAsyncUdpSocketDelegate {    
+    public func udpSocket(_ sock: GCDAsyncUdpSocket, didReceive data: Data, fromAddress address: Data, withFilterContext filterContext: Any?) {
+        LogDebug("")
     }
 }
 

@@ -55,7 +55,7 @@ extension TLS1_2 {
         
         func didReadMessage(_ msg: TLSMessage, rawData: [UInt8], unpack: Bool = false) throws {
             if unpack || !clientCipherChanged {                
-                LogDebug("\(msg.type) -> \(rawData.count)")
+                LogInfo("\(msg.type) -> \(rawData.count)")
             }
             switch msg.type {
             case .changeCipherSpec:

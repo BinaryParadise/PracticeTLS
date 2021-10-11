@@ -9,7 +9,8 @@ let package = Package(
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .executable(name: "server", targets: ["SimpleHTTPServer"]),
-        .library(name: "PracticeTLS", targets: ["PracticeTLS"])
+        .library(name: "PracticeTLS", targets: ["PracticeTLS"]),
+        .library(name: "quic", targets: ["QUIC"])
     ],
     dependencies: [
         .package(url: "https://github.com/robbiehanson/CocoaAsyncSocket", from: "7.6.4"),
@@ -21,15 +22,16 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(name: "SimpleHTTPServer",
                 dependencies:
-                    ["PracticeTLS", "SwiftHpack"],
+                    ["PracticeTLS", "SwiftHpack", "QUIC"],
                 resources: [.copy("Cert")]),
         .target(
             name: "PracticeTLS",
             dependencies: ["CocoaAsyncSocket", "Rainbow", "SecurityRSA", "CryptoSwift"]),
         .target(name: "SecurityRSA"),
+        .target(name: "QUIC", dependencies: ["PracticeTLS"]),
         .testTarget(
             name: "PracticeTLSTests",
-            dependencies: ["PracticeTLS"]),
+            dependencies: ["PracticeTLS", "QUIC"]),
     ],
     swiftLanguageVersions: [.version("5.0")]
 )

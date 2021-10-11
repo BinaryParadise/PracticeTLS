@@ -14,7 +14,7 @@ protocol Streamable {
 /// Data读取流
 public class DataStream {
     private var origin: [UInt8] = []
-    var data: [UInt8] {
+    public var data: [UInt8] {
         return origin
     }
     
@@ -38,6 +38,11 @@ public class DataStream {
     /// 重置读取
     public func reset() {
         position = 0
+    }
+    
+    @discardableResult public func readCount(byteCount: UInt8, cursor: Bool = true) -> [UInt8]? {
+        let count = read(count: byteCount) ?? []
+        return read(count: Int(count.int64Value))
     }
     
     @discardableResult public func read(count: UInt8, cursor: Bool = true) -> [UInt8]? {
@@ -151,7 +156,7 @@ extension Array where Element == UInt8 {
     public var intValue: Int {
         var r: Int = 0
         for (i, item) in reversed().enumerated() {
-            r += Int(item << (i * 8))
+            r += Int(item) << (i * 8)
         }
         return r
     }

@@ -50,15 +50,15 @@ public class TLSConnection: NSObject {
                     let hashValue = record.s.hashAlgorithm.hashFunction(handshakeData)
                     
                     handshakeData = [TLSHandshakeType.messageHash.rawValue, 0, 0, UInt8(hashLength)] + hashValue
-                    LogWarn("hashed => \(handshakeData.count)")
+                    //LogWarn("hashed => \(handshakeData.count)")
                 }
             }
             
             handshakeData.append(contentsOf: msg.dataWithBytes())
         }
-        LogWarn(handshakeMessages.map { msg in
-            "\(msg)_\(msg.dataWithBytes().count)"
-        }.joined(separator: ", "))
+//        LogWarn(handshakeMessages.map { msg in
+//            "\(msg)_\(msg.dataWithBytes().count)"
+//        }.joined(separator: ", "))
         return record.s.hashAlgorithm.hashFunction(handshakeData)
     }
     
@@ -167,7 +167,7 @@ extension TLSConnection: GCDAsyncSocketDelegate {
     
     public func socket(_ sock: GCDAsyncSocket, didWriteDataWithTag tag: Int) {
         let wtag = RWTags(rawValue: UInt8(tag))
-        LogDebug("\(wtag)")
+        LogInfo("\(wtag)")
         if let nextRead = record.didWriteMessage(wtag) {
             sock.readData(tag: nextRead)
         }

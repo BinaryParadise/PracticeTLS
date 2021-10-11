@@ -6,7 +6,7 @@
 
 调试工具: NSS Key Log & Wireshark
 
-## 步骤
+## TLS
 
 ### 一、创建项目
 
@@ -33,7 +33,7 @@ swift package init
 
 ![image](https://user-images.githubusercontent.com/8289395/128992867-8b653dac-7f85-4ce3-87da-73f90a8c6574.png)
 
-## 参考资料
+### TLS 1.2 & 1.3参考资料
 
 [SwiftTLS](https://github.com/nsc/SwiftTLS)
 
@@ -53,7 +53,13 @@ swift package init
 [TLS1.3---密钥的计算...](https://blog.csdn.net/qq_35324057/article/details/105792293)
 [HTTPS 温故知新（五） —— TLS 中的密钥计算](https://halfrost.com/https-key-cipher/)
 
-## 扩展
+## HTTP2
 
 [HTTP/2 简介](https://developers.google.com/web/fundamentals/performance/http2?hl=zh-cn)
 [HTTP2 详解](https://juejin.cn/post/6844903667569541133#heading-11)
+
+## QUIC
+
+[本站开始支持 QUIC](https://halfrost.com/quic_start/)
+[QUIC协议详解之Initial包的处理](https://segmentfault.com/a/1190000023592802)
+[QUIC包类型和格式](https://quic.readthedocs.io/zh/latest/Packet%20Types%20and%20Formats.html)

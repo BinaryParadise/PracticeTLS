@@ -5,4 +5,4 @@
 xcuserdata/
 DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
-tlskey.log
+Wireshark/pre_master_secret_key.log
