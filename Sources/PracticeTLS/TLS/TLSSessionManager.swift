@@ -20,9 +20,8 @@ public class TLSSessionManager: NSObject {
     public static var shared = TLSSessionManager()
     public var identity: Identity? = nil {
         willSet {
-            if let cert = newValue?.certificateChain.last {
-                
-                try? RSAEncryptor.shared.setup(publicPEM: String(contentsOfFile: Bundle.certBundle().path(forResource: "Cert/public.pem", ofType: nil)!), privatePEM: String(contentsOfFile: Bundle.certBundle().path(forResource: "Cert/private.pem", ofType: nil)!))
+            if let pemIdentity = newValue as? PEMFileIdentity {
+                try? RSAEncryptor.shared.setup(publicPEM: String(contentsOfFile: pemIdentity.publicPEM), privatePEM: String(contentsOfFile: pemIdentity.privatePEM))
             }
         }
     }

@@ -11,10 +11,13 @@ import Foundation
 public class PEMFileIdentity
 {
     public var certificateChain: [X509.Certificate]
+    public var publicPEM: String
+    public var privatePEM: String
     
     public init?(certificateFile: String, privateKeyFile: String)
     {
-        
+        publicPEM = certificateFile
+        privatePEM = privateKeyFile
         certificateChain = []
         for (section, object) in ASN1Parser.sectionsFromPEMFile(certificateFile) {
             switch section {
