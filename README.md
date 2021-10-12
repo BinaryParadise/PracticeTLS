@@ -6,7 +6,13 @@
 
 调试工具: NSS Key Log & Wireshark
 
-## TLS
+## 实现
+
+### 预览
+
+![image](https://user-images.githubusercontent.com/8289395/136887221-6055b688-5b5d-4b9e-9a25-f75938b51a5a.png)
+
+![image](https://user-images.githubusercontent.com/8289395/136887369-f4cabdbb-1a8c-43f7-b43d-2f33368b7aa8.png)
 
 ### 一、创建项目
 
