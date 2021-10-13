@@ -7,7 +7,6 @@
 
 import Foundation
 import CocoaAsyncSocket
-import SecurityRSA
 
 public protocol TLSConnectionDelegate {
     /// TLS握手完成
@@ -18,6 +17,9 @@ public protocol TLSConnectionDelegate {
 
 public class TLSSessionManager: NSObject {
     public static var shared = TLSSessionManager()
+    
+    public var isDebug: Bool = false
+    
     public var identity: Identity? = nil {
         willSet {
             if let pemIdentity = newValue as? PEMFileIdentity {

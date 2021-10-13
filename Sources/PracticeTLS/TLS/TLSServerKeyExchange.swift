@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SecurityRSA
 
 enum CurveType: UInt8 {
     case named_curve = 0x03

@@ -24,7 +24,7 @@ public struct LogFlag: OptionSet {
     public static let all: LogFlag = [.error, .warning, .info, .debug, .verbose]
 }
 
-public var dynamicLogLevel: LogFlag = .info
+public var dynamicLogLevel: LogFlag = .all
 
 @inlinable
 public func LogError(_ message: @autoclosure () -> String,

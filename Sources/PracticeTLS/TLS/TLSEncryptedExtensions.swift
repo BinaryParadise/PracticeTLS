@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SecurityRSA
 
 class TLSEncryptedExtensions: TLSHandshakeMessage {
     

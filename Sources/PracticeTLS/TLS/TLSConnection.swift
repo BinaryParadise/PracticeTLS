@@ -8,7 +8,6 @@
 import Foundation
 import CocoaAsyncSocket
 import CryptoSwift
-import SecurityRSA
 
 public let TLSClientFinishedLabel = [UInt8]("client finished".utf8)
 public let TLSServerFinishedLabel = [UInt8]("server finished".utf8)

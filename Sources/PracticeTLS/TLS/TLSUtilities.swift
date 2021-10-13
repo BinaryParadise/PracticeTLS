@@ -152,6 +152,16 @@ public extension String {
             return nil
         }
     }
+    
+    var rsaCleanKey: String {
+        if contains("BEGIN") {
+            var arr = self.split(separator: "\n")
+            arr.removeFirst()
+            arr.removeLast()
+            return arr.joined()
+        }
+        return self
+    }
 }
 
 /// P_hash function as defined in RFC 2246, section 5, p. 11

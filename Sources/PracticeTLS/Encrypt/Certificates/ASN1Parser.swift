@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import SecurityRSA
 
 enum ASN1TypeTag : UInt8
 {

@@ -8,13 +8,12 @@
 import Foundation
 import CryptoKit
 import CryptoSwift
-import SecurityRSA
 
 extension TLS1_3 {
     static let ivLabel  = [UInt8]("iv".utf8)
     static let keyLabel = [UInt8]("key".utf8)
     
-    class RecordLayer: TLSRecordProtocol, CustomStringConvertible {
+    class RecordLayer: TLSRecordProtocol, CustomStringConvertible, CustomDebugStringConvertible {
         var context: TLSConnection
         var handshaked: Bool = false
         var clientCipherChanged: Bool = false
@@ -64,6 +63,9 @@ extension TLS1_3 {
                             //线程步调不一致导致解密失败⚠️⚠️⚠️⚠️
                             sema.wait()
                             changeReadKey(with: handshakeState.clientTrafficSecret!)
+                            if TLSSessionManager.shared.isDebug {
+                                try? description.write(toFile: "\(NSHomeDirectory())/MasterSecretKey.log", atomically: true, encoding: .utf8)
+                            }
                             TLSSessionManager.shared.delegate?.didHandshakeFinished(context)
                         } else {
                             context.sendMessage(msg: TLSAlert(alert: .badRecordMAC, alertLevel: .fatal))
@@ -233,6 +235,15 @@ extension TLS1_3 {
         }
         
         var description: String {
+            return """
+                CLIENT_HANDSHAKE_TRAFFIC_SECRET \(s.clientRandom.toHexString()) \(handshakeState.clientHandshakeTrafficSecret!.toHexString())
+                SERVER_HANDSHAKE_TRAFFIC_SECRET \(s.clientRandom.toHexString()) \(handshakeState.serverHandshakeTrafficSecret!.toHexString())
+                CLIENT_TRAFFIC_SECRET_0 \(s.clientRandom.toHexString()) \(handshakeState.clientTrafficSecret!.toHexString())
+                SERVER_TRAFFIC_SECRET_0 \(s.clientRandom.toHexString()) \(handshakeState.serverTrafficSecret!.toHexString())
+                """
+        }
+        
+        var debugDescription: String {
             switch context.keyExchange {
             case .rsa:
                 return "Unsupport"
@@ -323,7 +334,7 @@ extension TLS1_3 {
         }
         
         var description: String {
-            return "Key: \(p.key.toHexString() ) IV: \(p.iv.toHexString() ?? "")"
+            return "[sequence: \(p.sequenceNumber)] Key: \(p.key.toHexString() ) IV: \(p.iv.toHexString() )"
         }
     }
 }

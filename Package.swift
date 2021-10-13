@@ -26,12 +26,11 @@ let package = Package(
                 resources: [.copy("Cert")]),
         .target(
             name: "PracticeTLS",
-            dependencies: ["CocoaAsyncSocket", "Rainbow", "SecurityRSA", "CryptoSwift"]),
-        .target(name: "SecurityRSA"),
+            dependencies: ["CocoaAsyncSocket", "Rainbow", "CryptoSwift"]),
         .target(name: "QUIC", dependencies: ["PracticeTLS"]),
         .testTarget(
             name: "PracticeTLSTests",
             dependencies: ["PracticeTLS", "QUIC"]),
     ],
-    swiftLanguageVersions: [.version("5.0")]
+    swiftLanguageVersions: [.v5]
 )
