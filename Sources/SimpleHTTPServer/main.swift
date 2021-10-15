@@ -17,4 +17,4 @@ let bundle = Bundle(path: "\(Bundle(for: A.self).resourcePath!)/PracticeTLS_Simp
 let identity = PEMFileIdentity(certificateFile: bundle.path(forResource: "Cert/localhost.crt", ofType: nil)!, privateKeyFile: bundle.path(forResource: "Cert/private.pem", ofType: nil)!)!
 
 let httpServer = HTTPServer(identity)
-httpServer.start(port: 8443, quic: false).wait()
+httpServer.start(port: 8443).wait()

@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import CocoaAsyncSocket
+import Socket
 
 public protocol TLSConnectionDelegate {
     /// TLS握手完成
@@ -31,7 +31,7 @@ public class TLSSessionManager: NSObject {
     public var delegate: TLSConnectionDelegate?
     let sema = DispatchSemaphore(value: 1)
     
-    public func acceptConnection(_ sock: GCDAsyncSocket) {
+    public func acceptConnection(_ sock: Socket) {
         let newConnection = TLSConnection(sock)
         newConnection.handshake()
         sema.wait()

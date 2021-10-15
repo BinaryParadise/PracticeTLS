@@ -10,10 +10,9 @@ let package = Package(
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .executable(name: "server", targets: ["SimpleHTTPServer"]),
         .library(name: "PracticeTLS", targets: ["PracticeTLS"]),
-        .library(name: "quic", targets: ["QUIC"])
     ],
     dependencies: [
-        .package(url: "https://github.com/robbiehanson/CocoaAsyncSocket", from: "7.6.4"),
+        .package(url: "https://github.com/Kitura/BlueSocket.git", .upToNextMinor(from: "2.0.0")),
         .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
         .package(url: "https://github.com/BinaryParadise/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
         .package(name: "SwiftHpack", url: "https://github.com/BinaryParadise/swift-hpack.git", from: "0.1.0"),
@@ -22,15 +21,14 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(name: "SimpleHTTPServer",
                 dependencies:
-                    ["PracticeTLS", "SwiftHpack", "QUIC"],
+                    ["PracticeTLS", "SwiftHpack"],
                 resources: [.copy("Cert")]),
         .target(
             name: "PracticeTLS",
-            dependencies: ["CocoaAsyncSocket", "Rainbow", "CryptoSwift"]),
-        .target(name: "QUIC", dependencies: ["PracticeTLS"]),
+            dependencies: ["Rainbow", "CryptoSwift", .product(name: "Socket", package: "BlueSocket")]),
         .testTarget(
             name: "PracticeTLSTests",
-            dependencies: ["PracticeTLS", "QUIC"]),
+            dependencies: ["PracticeTLS"]),
     ],
     swiftLanguageVersions: [.v5]
 )

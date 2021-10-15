@@ -9,10 +9,8 @@ import Foundation
 import XCTest
 import Foundation
 import CryptoSwift
-import SecurityRSA
 import CommonCrypto
 import CryptoKit
-import CocoaAsyncSocket
 @testable import PracticeTLS
 
 class ECDHETests: XCTestCase {

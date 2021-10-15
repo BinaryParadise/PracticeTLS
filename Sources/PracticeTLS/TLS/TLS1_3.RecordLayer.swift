@@ -20,7 +20,7 @@ extension TLS1_3 {
         var serverCipherChanged: Bool = false
         var handshakeState: HandshakeState
         var s: TLSSecurityParameters!
-        let sema = DispatchSemaphore(value: 0)
+        let sema = DispatchSemaphore(value: 10)
         
         required init(_ context: TLSConnection) {
             self.context = context
@@ -61,7 +61,7 @@ extension TLS1_3 {
                             handshaked = true
                             
                             //线程步调不一致导致解密失败⚠️⚠️⚠️⚠️
-                            sema.wait()
+                            //sema.wait()
                             changeReadKey(with: handshakeState.clientTrafficSecret!)
                             if TLSSessionManager.shared.isDebug {
                                 try? description.write(toFile: "\(NSHomeDirectory())/MasterSecretKey.log", atomically: true, encoding: .utf8)
@@ -77,7 +77,7 @@ extension TLS1_3 {
             case .alert:
                 if let alert = msg as? TLSAlert {
                     if alert.alertType == .closeNotify {
-                        context.sock.disconnectAfterReadingAndWriting()
+                        context.disconnect()
                     }
                     LogError("alert: \(alert.level) -> \(alert.alertType)")
                 } else {
@@ -169,7 +169,7 @@ extension TLS1_3 {
                         
             handshakeState.deriveApplicationTrafficSecrets(transcriptHash: context.transcriptHash)
             changeWriteKey(with: handshakeState.serverTrafficSecret!)
-            sema.signal()
+            //sema.signal()
         }
         
         func finishedData(forClient isClient: Bool) -> [UInt8] {

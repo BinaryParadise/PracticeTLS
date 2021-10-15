@@ -5,7 +5,8 @@
 //  Created by Rake Yang on 2021/8/5.
 //
 
-import CocoaAsyncSocket
+import Socket
+import Foundation
 
 /// 数据读写标记
 enum RWTags {
@@ -45,13 +46,34 @@ enum RWTags {
     }
 }
 
-extension GCDAsyncSocket {
-    func readData(tag: RWTags) -> Void {
-        readData(withTimeout: -1, tag: tag.rawValue)
+extension Socket: TLSSocketStream {
+    func readData(_ tag: RWTags) -> [UInt8] {
+        LogDebug("读取前: \(Thread.current)")
+        var buffer: Data = Data()
+        do {
+            try read(into: &buffer)
+            //LogDebug("读取后: \(Thread.current)")
+            return buffer.bytes
+        } catch {
+            //LogError("\(error)")
+        }
+        return []
     }
     
-    func writeData(data: [UInt8]?, tag: RWTags) -> Void {
-        write(Data(data ?? []), withTimeout: -1, tag: tag.rawValue)
+    func writeData(_ data: [UInt8]?, tag: RWTags) {
+        guard let data = data else { return }
+        //LogDebug("写入前: \(Thread.current)")
+        var buffer: Data = Data()
+        do {
+            try write(from: Data(data))
+            //LogDebug("写入后: \(Thread.current)")
+        } catch {
+            LogError("\(error)")
+        }
+    }
+    
+    func disconnect() {
+        close()
     }
 }
 
