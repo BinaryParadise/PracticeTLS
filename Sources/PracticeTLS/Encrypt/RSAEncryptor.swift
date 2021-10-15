@@ -28,6 +28,7 @@ public class RSAEncryptor {
         self.privatePEM = privatePEM
     }
     
+#if os(OSX)
     func getPrivateSecKey() -> SecKey? {
         let keyBase64 = Data(base64Encoded: self.privatePEM.rsaCleanKey)!
         let sec = SecKeyCreateWithData(keyBase64 as CFData, [kSecAttrType: kSecAttrKeyTypeRSA,
@@ -45,6 +46,7 @@ public class RSAEncryptor {
                                                    kSecAttrKeyClass: kSecAttrKeyClassPublic] as NSDictionary, nil)
         return sec
     }
+#endif
     
     // 使用'.12'私钥文件解密 11
     public func encryptData(data:Data) throws -> Data {
