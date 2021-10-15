@@ -12,33 +12,8 @@ import _CryptoExtras
 #if canImport(Security)
 import Security
 #endif
- 
-/// GMJ---RSA并.p12加密解密
+
 public class RSAEncryptor {
-    
-    enum RSAError: Error {
-         case chunkEncryptFailed(index: Int)
-         case keyCopyFailed(status: OSStatus)
-         case tagEncodingFailed
-         case keyCreateFailed(error: CFError?)
-        case chunkDecryptFailed(index: Int)
-        var localizedDescription: String {
-            switch self {
-            case .chunkEncryptFailed(let index):
-                return "Couldn't encrypt chunk at index \(index)"
-            case .keyCopyFailed(let status):
-                return "Couldn't copy and retrieve key reference from the keychain: OSStatus \(status)"
-            case .tagEncodingFailed:
-                return "Couldn't create tag data for key"
-            case .keyCreateFailed(let error):
-                return "Couldn't create key reference from key data: CFError \(String(describing: error))"
-            case .chunkDecryptFailed(let index):
-                return "Couldn't decrypt chunk at index \(index)"
-            default:
-                return "Couldn't encrypt chunk at index"
-            }
-        }
-    }
     
     var publicPEM: String!
     var privatePEM: String!
@@ -73,52 +48,52 @@ public class RSAEncryptor {
     
     // 使用'.12'私钥文件解密 11
     public func encryptData(data:Data) throws -> Data {
-        #if os(Linux)
+#if os(Linux)
         fatalError("RSA Encryption unsupport on linux")
-        #endif
+#else
         let keyRef = getPublicSecKey()!
         let padding = SecPadding.PKCS1
         let blockSize = SecKeyGetBlockSize(keyRef)
               
-              var maxChunkSize: Int
-              switch padding {
-              case []:
-                  maxChunkSize = blockSize
-              case .OAEP:
-                  maxChunkSize = blockSize - 42
-              default:
-                  maxChunkSize = blockSize //- 11
-              }
-              
-              var decryptedDataAsArray = [UInt8](repeating: 0, count: data.count)
-              (data as NSData).getBytes(&decryptedDataAsArray, length: data.count)
-              
-              var encryptedDataBytes = [UInt8](repeating: 0, count: 0)
-              var idx = 0
-              
-              while idx < decryptedDataAsArray.count {
-                  
-                  let idxEnd = min(idx + maxChunkSize, decryptedDataAsArray.count)
-                  let chunkData = [UInt8](decryptedDataAsArray[idx..<idxEnd])
-                  
-                var error: Unmanaged<CFError>?
-                if var encryptedDataBuffer = SecKeyCreateEncryptedData(keyRef, .rsaEncryptionPKCS1, Data(chunkData) as! CFData, &error) {
-                    encryptedDataBytes.append(contentsOf: [UInt8](encryptedDataBuffer as Data))
-                }
-                                    
-                  
-                  idx += maxChunkSize
-              }
-              
-              let encryptedData = Data(bytes: encryptedDataBytes, count: encryptedDataBytes.count)
-              return encryptedData
-        
+        var maxChunkSize: Int
+        switch padding {
+        case []:
+          maxChunkSize = blockSize
+        case .OAEP:
+          maxChunkSize = blockSize - 42
+        default:
+          maxChunkSize = blockSize //- 11
+        }
+
+        var decryptedDataAsArray = [UInt8](repeating: 0, count: data.count)
+        (data as NSData).getBytes(&decryptedDataAsArray, length: data.count)
+
+        var encryptedDataBytes = [UInt8](repeating: 0, count: 0)
+        var idx = 0
+
+        while idx < decryptedDataAsArray.count {
+          
+          let idxEnd = min(idx + maxChunkSize, decryptedDataAsArray.count)
+          let chunkData = [UInt8](decryptedDataAsArray[idx..<idxEnd])
+          
+        var error: Unmanaged<CFError>?
+        if var encryptedDataBuffer = SecKeyCreateEncryptedData(keyRef, .rsaEncryptionPKCS1, Data(chunkData) as! CFData, &error) {
+            encryptedDataBytes.append(contentsOf: [UInt8](encryptedDataBuffer as Data))
+        }
+                            
+          
+          idx += maxChunkSize
+        }
+
+        let encryptedData = Data(bytes: encryptedDataBytes, count: encryptedDataBytes.count)
+        return encryptedData
+#endif
     }
         
     func decryptData(data: [UInt8]) -> [UInt8] {
 #if os(Linux)
         fatalError("RSA Encryption unsupport on linux")
-#endif
+#else
         let keyRef = getPrivateSecKey()!
         let blockSize = SecKeyGetBlockSize(keyRef)
         
@@ -142,6 +117,7 @@ public class RSAEncryptor {
         }
         
         return decryptedDataBytes
+#endif
     }
     
     public func sign(data: [UInt8], algorithm: _RSA.Signing.Padding = .PSS) throws -> [UInt8] {

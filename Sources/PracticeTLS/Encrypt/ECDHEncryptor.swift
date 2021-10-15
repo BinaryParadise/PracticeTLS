@@ -12,12 +12,6 @@ public class ECDHEncryptor {
     var privateKeyData: [UInt8]
     let namedGroup: NamedGroup
     
-    func keyAttr(pub: Bool) -> CFDictionary {
-        return [kSecAttrKeyClass: pub ? kSecAttrKeyClassPublic : kSecAttrKeyClassPrivate,
-                kSecReturnPersistentRef: true,
-                kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom] as CFDictionary
-    }
-    
     public init(_ priKeyData: [UInt8]? = nil, group: NamedGroup = .x25519) throws {
         self.namedGroup = group
         if let priKeyData = priKeyData {
