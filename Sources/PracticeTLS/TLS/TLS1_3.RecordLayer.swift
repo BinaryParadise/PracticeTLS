@@ -154,7 +154,7 @@ extension TLS1_3 {
                 proofData += context.transcriptHash
                 
                 do {
-                    let signature = try signer.sign(data: proofData, algorithm: .rsaSignatureMessagePSSSHA256)
+                    let signature = try signer.sign(data: proofData, algorithm: .PSS)
                     context.sendMessage(msg: TLSCertificateVerify(algorithm: .rsa_pss_sha256, signature: signature))
                 } catch {
                     LogError("\(error)")

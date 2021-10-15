@@ -144,14 +144,14 @@ public class RSAEncryptor {
         return decryptedDataBytes
     }
     
-    public func sign(data: [UInt8], algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256) throws -> [UInt8] {
+    public func sign(data: [UInt8], algorithm: _RSA.Signing.Padding = .PSS) throws -> [UInt8] {
         let secKey = try _RSA.Signing.PrivateKey.init(pemRepresentation: privatePEM)
-        return try secKey.signature(for: data, padding: .insecurePKCS1v1_5).rawRepresentation.bytes
+        return try secKey.signature(for: data, padding: algorithm).rawRepresentation.bytes
     }
     
-    public func verify(signed: [UInt8], signature: [UInt8], algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256) throws -> Bool {
+    public func verify(signed: [UInt8], signature: [UInt8], algorithm: _RSA.Signing.Padding = .PSS) throws -> Bool {
         //半天验证不过原来是公钥搞错了⚠️⚠️⚠️
         let pubSecKey = try _RSA.Signing.PublicKey.init(pemRepresentation: publicPEM)        
-        return pubSecKey.isValidSignature(_RSA.Signing.RSASignature(rawRepresentation: signed), for: signature, padding: .insecurePKCS1v1_5)
+        return pubSecKey.isValidSignature(_RSA.Signing.RSASignature(rawRepresentation: signed), for: signature, padding: algorithm)
     }
 }
