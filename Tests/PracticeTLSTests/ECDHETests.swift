@@ -10,7 +10,7 @@ import XCTest
 import Foundation
 import CryptoSwift
 import CommonCrypto
-import CryptoKit
+import Crypto
 @testable import PracticeTLS
 
 class ECDHETests: XCTestCase {

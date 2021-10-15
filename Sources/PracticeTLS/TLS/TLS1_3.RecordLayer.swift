@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import CryptoKit
+import Crypto
 import CryptoSwift
 
 extension TLS1_3 {

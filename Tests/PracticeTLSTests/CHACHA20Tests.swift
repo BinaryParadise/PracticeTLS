@@ -11,7 +11,7 @@ import Foundation
 import XCTest
 import Foundation
 import CommonCrypto
-import CryptoKit
+import Crypto
 @testable import PracticeTLS
 
 class CHACHA20Tests: XCTestCase {

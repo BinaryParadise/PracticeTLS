@@ -7,7 +7,7 @@
 
 import Foundation
 import CryptoSwift
-import CryptoKit
+import Crypto
 
 class TLSSecurityParameters {
     public var version: TLSVersion

@@ -7,7 +7,7 @@
 
 import Foundation
 import CryptoSwift
-import CryptoKit
+import Crypto
 
 enum TLS1_2 {}
 

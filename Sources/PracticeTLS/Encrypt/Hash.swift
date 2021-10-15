@@ -6,7 +6,7 @@
 //  Copyright © 2018 Nico Schmidt. All rights reserved.
 //
 
-import CryptoKit
+import Crypto
 
 protocol Hash {
     static func hash(_ m: [UInt8]) -> [UInt8]

@@ -48,7 +48,7 @@ enum RWTags {
 
 extension Socket: TLSSocketStream {
     func readData(_ tag: RWTags) -> [UInt8] {
-        LogDebug("读取前: \(Thread.current)")
+        //LogDebug("读取前: \(Thread.current)")
         var buffer: Data = Data()
         do {
             try read(into: &buffer)
@@ -63,7 +63,6 @@ extension Socket: TLSSocketStream {
     func writeData(_ data: [UInt8]?, tag: RWTags) {
         guard let data = data else { return }
         //LogDebug("写入前: \(Thread.current)")
-        var buffer: Data = Data()
         do {
             try write(from: Data(data))
             //LogDebug("写入后: \(Thread.current)")

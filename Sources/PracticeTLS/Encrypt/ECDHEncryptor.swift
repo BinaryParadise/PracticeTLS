@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import CryptoKit
+import Crypto
 
 public class ECDHEncryptor {
     var privateKeyData: [UInt8]
