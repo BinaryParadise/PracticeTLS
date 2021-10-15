@@ -300,7 +300,7 @@ extension TLS1_3 {
                     let box = try ChaChaPoly.seal(plainText, using: .init(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
                     return (box.ciphertext + box.tag).bytes
                 } else {
-                    let box = try CryptoKit.AES.GCM.seal(plainText, using: SymmetricKey(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
+                    let box = try AES.GCM.seal(plainText, using: SymmetricKey(data: p.key), nonce: .init(data: p.currentIV), authenticating: authData)
                     p.sequenceNumber += 1
                     return box.ciphertext.bytes + box.tag.bytes
                 }
@@ -326,7 +326,7 @@ extension TLS1_3 {
                 authData.append(contentsOf: TLSVersion.V1_2.rawValue.bytes)
                 authData.append(contentsOf: UInt16(encryptedData.count).bytes)
             
-                let message = try CryptoKit.AES.GCM.open(.init(combined: p.currentIV + encryptedData), using: SymmetricKey(data: p.key), authenticating: authData).bytes
+                let message = try AES.GCM.open(.init(combined: p.currentIV + encryptedData), using: SymmetricKey(data: p.key), authenticating: authData).bytes
                 p.sequenceNumber += 1
                 return message
             }

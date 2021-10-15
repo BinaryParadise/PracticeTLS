@@ -278,7 +278,7 @@ extension TLS1_2 {
                     return sealedBox.ciphertext + sealedBox.tag.bytes
                 }
                 
-                let b = try CryptoKit.AES.GCM.seal(myPlantText, using: key, nonce: .init(data: IV), authenticating: macHeader)
+                let b = try AES.GCM.seal(myPlantText, using: key, nonce: .init(data: IV), authenticating: macHeader)
                 var cipherText = recordIV+b.ciphertext.bytes+b.tag
                 
                 #else
@@ -331,7 +331,7 @@ extension TLS1_2 {
                 return decrypted
             }
             
-            let message = try CryptoKit.AES.GCM.open(.init(combined: IV+cipherText+authTag), using: key, authenticating: macHeader).bytes
+            let message = try AES.GCM.open(.init(combined: IV+cipherText+authTag), using: key, authenticating: macHeader).bytes
             sequenceNumber += 1
             return message
             
