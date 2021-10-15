@@ -6,16 +6,24 @@
 //
 
 import Foundation
-import CocoaAsyncSocket
+import Socket
 import CryptoSwift
 
 public let TLSClientFinishedLabel = [UInt8]("client finished".utf8)
 public let TLSServerFinishedLabel = [UInt8]("server finished".utf8)
 public let TLSKeyExpansionLabel = [UInt8]("key expansion".utf8)
 
-public class TLSConnection: NSObject {
+protocol TLSSocketStream {
+    func readData(_ tag: RWTags) -> [UInt8]
+    
+    func writeData(_ data: [UInt8]?, tag: RWTags)
+    
+    func disconnect()
+}
+
+public class TLSConnection {
     var sessionId: String
-    public var sock: GCDAsyncSocket
+    var sock: TLSSocketStream
     var nextMessage: TLSMessage?
     var preMasterKey: [UInt8] = []
     var handshakeMessages: [TLSHandshakeMessage] = []
@@ -35,6 +43,11 @@ public class TLSConnection: NSObject {
     private var _record: TLSRecordProtocol?
     var record: TLSRecordProtocol!
     public var negotiatedProtocolVersion: TLSVersion = .V1_2
+    var socketQueue: DispatchQueue = DispatchQueue(label: "SocketQueue", attributes: .init(rawValue: 0))
+    
+    public var connectedHost: String {
+        return (sock as? Socket)?.remoteHostname ?? "known"
+    }
     
     var transcriptHash: [UInt8] {
         var handshakeData: [UInt8] = []
@@ -61,16 +74,14 @@ public class TLSConnection: NSObject {
         return record.s.hashAlgorithm.hashFunction(handshakeData)
     }
     
-    init(_ sock: GCDAsyncSocket) {
+    init(_ sock: TLSSocketStream) {
         self.sock = sock
         sessionId = AES.randomIV(16).toHexString()
-        super.init()
-        self.sock.delegate = self
     }
     
     func handshake() {
         LogInfo("handshake start")
-        sock.readData(tag: .handshake(.clientHello))
+        asyncRead(tag: .handshake(.clientHello))
     }
     
     func verifyDataForFinishedMessage(isClient: Bool) -> [UInt8] {
@@ -80,14 +91,15 @@ public class TLSConnection: NSObject {
     }
     
     public func disconnect() {
-        sock.disconnectAfterWriting()
+        sock.disconnect()
+        TLSSessionManager.shared.clearConnection(self)
     }
     
     public func readApplication(tag: Int) {
         readWriteTag = tag
         if lastPacket {
             //处理粘包，若为最后一个包开始新读取
-            sock.readData(tag: .applicationData)
+            asyncRead(tag: .applicationData)
         }
     }
     
@@ -104,7 +116,11 @@ public class TLSConnection: NSObject {
         guard let msg = msg else { return }
         var prepareData: [UInt8] = []
         if record.serverCipherChanged {
-            prepareData.write(ContentType.applicationData.rawValue)
+            if negotiatedProtocolVersion == .V1_3 {
+                prepareData.write(ContentType.applicationData.rawValue)
+            } else {
+                prepareData.write(msg.contentType.rawValue)
+            }
         } else {
             prepareData.write(msg.contentType.rawValue)
         }
@@ -119,24 +135,27 @@ public class TLSConnection: NSObject {
             handshakeMessages.append(handshake)
         }
         
-        sendData(prepareData, tag: msg.rwtag)
+        asyncWrite(data: prepareData, tag: msg.rwtag)
     }
     
-    func sendData(_ sendData: [UInt8], tag: RWTags) {
-        if maximumRecordSize < sendData.count {
-            let page = (sendData.count/maximumRecordSize+(sendData.count%maximumRecordSize > 0 ? 1:0))
-            for i in 0..<page {
-                let cur = sendData[i*maximumRecordSize..<min(sendData.count, (i+1)*maximumRecordSize)]
-                sock.writeData(data: Array(cur), tag: i < page-1 ? .fragment : tag)
-            }
-        } else {
-            sock.writeData(data: sendData, tag: tag)
+    func asyncRead(tag: RWTags) {
+        socketQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.socket(didRead: self.sock.readData(tag), withTag: tag)
+        }
+    }
+    
+    func asyncWrite(data: [UInt8]?, tag: RWTags) -> Void {
+        socketQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.sock.writeData(data, tag: tag)
+            self.socket(didWriteDataWithTag: tag)
         }
     }
 }
 
-extension TLSConnection: GCDAsyncSocketDelegate {
-    public func socket(_ sock: GCDAsyncSocket, didRead data: Data, withTag tag: Int) {
+extension TLSConnection {
+    func socket(didRead data: [UInt8], withTag tag: RWTags) {
         //处理粘包
         let stream = DataStream(data)
         while !stream.endOfStream {
@@ -164,16 +183,10 @@ extension TLSConnection: GCDAsyncSocketDelegate {
         }
     }
     
-    public func socket(_ sock: GCDAsyncSocket, didWriteDataWithTag tag: Int) {
-        let wtag = RWTags(rawValue: UInt8(tag))
-        LogInfo("\(wtag)")
-        if let nextRead = record.didWriteMessage(wtag) {
-            sock.readData(tag: nextRead)
+    func socket(didWriteDataWithTag tag: RWTags) {
+        LogInfo("\(tag)")
+        if let nextRead = record.didWriteMessage(tag) {
+            asyncRead(tag: nextRead)
         }
-    }
-    
-    public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
-        LogInfo("\(err)")
-        TLSSessionManager.shared.clearConnection(self)
     }
 }

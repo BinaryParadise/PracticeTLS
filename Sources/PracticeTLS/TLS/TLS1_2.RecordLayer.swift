@@ -66,9 +66,9 @@ extension TLS1_2 {
                     case .finished:
                         let clientFinished = TLSFinished(context.verifyDataForFinishedMessage(isClient: true))
                         s.clientVerifyData = clientFinished.dataWithBytes()
-                        let clientVerifyData = try decrypt(handshake.dataWithBytes(), contentType: handshake.contentType) ?? []
+                        let clientVerifyData = try decrypt(handshake.dataWithBytes(), contentType: handshake.contentType)
                         if clientVerifyData == s.clientVerifyData {
-                            context.sock.writeData(data: TLSChangeCipherSpec().dataWithBytes(), tag: .changeCipherSpec)
+                            context.asyncWrite(data: TLSChangeCipherSpec().dataWithBytes(), tag: .changeCipherSpec)
                             //踩坑：发送给客户端的finish也需要包含在摘要的握手消息中⚠️⚠️⚠️⚠️⚠️
                             context.handshakeMessages.append(clientFinished)
                         } else {
@@ -93,7 +93,7 @@ extension TLS1_2 {
                         context.disconnect()
                     } else {
                         if alert.alertType == .closeNotify {
-                            context.sock.disconnectAfterReadingAndWriting()
+                            context.disconnect()
                         }
                     }
                     LogError("alert: \(alert.level) -> \(alert.alertType)")

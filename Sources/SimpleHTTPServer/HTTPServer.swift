@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import CocoaAsyncSocket
 import PracticeTLS
+import Socket
 
 enum RWTags {
     case http1_1
@@ -37,11 +37,9 @@ enum RWTags {
 }
 
 public class HTTPServer: NSObject {
-    var socket: GCDAsyncSocket?
-    var quicSock: GCDAsyncUdpSocket?
+    var socket: Socket?
     var terminated = false
     var tlsEnabled: Bool = false
-    var quicEnabled: Bool = false
     var nextFrame: H2.Frame?
     
     public init(_ identity: PEMFileIdentity? = nil) {
@@ -49,22 +47,21 @@ public class HTTPServer: NSObject {
         tlsEnabled = identity != nil
         TLSSessionManager.shared.identity = identity
         TLSSessionManager.shared.delegate = self
-        socket = GCDAsyncSocket(delegate: self, delegateQueue: DispatchQueue.global())
-        socket?.isIPv6Enabled = false
+        socket = try? Socket.create(family: .inet, type: .stream, proto: .tcp)
     }
     
     @discardableResult public func start(port: UInt16, quic: Bool = false) -> Self {
         do {
-            try socket?.accept(onPort: port)
+            try socket?.listen(on: Int(port))
             print("start tcp on:\(port)")
-            if quic {
-                quicEnabled = quic
-                quicSock = GCDAsyncUdpSocket(delegate: self, delegateQueue: DispatchQueue.main, socketQueue: DispatchQueue(label: "udp socket queue", attributes: .init(rawValue: 0)))
-                quicSock?.setIPv6Enabled(false)
-                try quicSock?.bind(toPort: port)
-                try quicSock?.beginReceiving()
+            DispatchQueue.global().async { [weak self] in
+                guard let self = self else { return }
+                repeat {
+                    if let newSocket = try? self.socket?.acceptClientConnection() {
+                        self.socket(didAcceptNewSocket: newSocket)
+                    }
+                } while !self.terminated
             }
-            print("start udp on:\(port)")
         } catch {
             LogError(error.localizedDescription)
         }
@@ -73,11 +70,12 @@ public class HTTPServer: NSObject {
     
     @discardableResult public func wait() -> Bool {
         CFRunLoopRun()
+        terminated = false
         return false
     }
     
     func altSvc() -> String {
-        let port = (socket?.localPort ?? 0)
+        let port = (socket?.listeningPort ?? 0)
         return """
         Alt-Svc: h3=":\(port)"
         """
@@ -93,7 +91,7 @@ public class HTTPServer: NSObject {
         <body>
         <pre>
         Date: \(Date())
-        Connection from: \(connection.sock.connectedHost ?? "")
+        Connection from: \(connection.connectedHost)
         TLS Version: \(connection.negotiatedProtocolVersion.description)
         Cipher Suite: \(connection.cipherSuite)
         
@@ -108,9 +106,6 @@ public class HTTPServer: NSObject {
             return content
         }
         var response = ["HTTP/1.1 200 OK"]
-        if quicEnabled {
-            response.append(altSvc())
-        }
         response.append("Content-Length: \(content.bytes.count)")
         response.append("Connection: keep-alive")
         response.append("Content-Type: text/html; charset=utf-8")
@@ -139,7 +134,7 @@ public class HTTPServer: NSObject {
     func indexCSS(_ connection: TLSConnection, h2: Bool = false) -> String {
         let content = """
         body {
-            background-color: #000000;
+            background-color: #332F2F;
             color: #f013ef;
         }
         """
@@ -148,9 +143,6 @@ public class HTTPServer: NSObject {
             return content
         }
         var response = ["HTTP/1.1 200 OK"]
-        if quicEnabled {
-            response.append(altSvc())
-        }
         response.append("Content-Length: \(content.bytes.count)")
         response.append("Connection: keep-alive")
         response.append("Content-Type: text/css; charset=utf-8")
@@ -277,26 +269,24 @@ extension HTTPServer: TLSConnectionDelegate {
     }
 }
 
-extension HTTPServer: GCDAsyncSocketDelegate {
-    public func socket(_ sock: GCDAsyncSocket, didAcceptNewSocket newSocket: GCDAsyncSocket) {
+extension HTTPServer {
+    func socket(didAcceptNewSocket newSocket: Socket) {
         LogInfo("")
         if tlsEnabled {
             TLSSessionManager.shared.acceptConnection(newSocket)
         } else {
-            newSocket.readData(withTimeout: -1, tag: 0)
+            var data = Data()
+            try? newSocket.read(into: &data)
+            socket(newSocket, didRead: data, withTag: .http1_1)
         }
     }
     
-    public func newSocketQueueForConnection(fromAddress address: Data, on sock: GCDAsyncSocket) -> DispatchQueue? {
-        return DispatchQueue(label: "socket queue", attributes: .init(rawValue: 0))
-    }
-    
-    public func socket(_ sock: GCDAsyncSocket, didRead data: Data, withTag tag: Int) {
+    func socket(_ sock: Socket, didRead data: Data, withTag tag: RWTags) {
         LogDebug("\(tag)")
         httpResponse(sock, data: data)
     }
     
-    func httpResponse(_ sock: GCDAsyncSocket, data: Data) {
+    func httpResponse(_ sock: Socket, data: Data) {
         let content = "Hello, world!"
         var response = """
             HTTP/1.1 200 OK
@@ -319,18 +309,7 @@ extension HTTPServer: GCDAsyncSocketDelegate {
         response += """
             \(content)
             """
-        sock.write(response.data(using: .utf8) ?? Data(), withTimeout: 5, tag: 0)
-    }
-    
-    public func socketDidDisconnect(_ sock: GCDAsyncSocket, withError err: Error?) {
-        LogInfo("\(err)")
-    }
-}
-
-// QUIC
-extension HTTPServer: GCDAsyncUdpSocketDelegate {    
-    public func udpSocket(_ sock: GCDAsyncUdpSocket, didReceive data: Data, fromAddress address: Data, withFilterContext filterContext: Any?) {
-        LogDebug("")
+        try? sock.write(from: response.data(using: .utf8) ?? Data())
     }
 }
 

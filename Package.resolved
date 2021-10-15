@@ -2,12 +2,12 @@
   "object": {
     "pins": [
       {
-        "package": "CocoaAsyncSocket",
-        "repositoryURL": "https://github.com/robbiehanson/CocoaAsyncSocket",
+        "package": "Socket",
+        "repositoryURL": "https://github.com/Kitura/BlueSocket.git",
         "state": {
           "branch": null,
-          "revision": "dbdc00669c1ced63b27c3c5f052ee4d28f10150c",
-          "version": "7.6.5"
+          "revision": "dd924c3bc2c1c144c42b8dda3896f1a03115ded4",
+          "version": "2.0.2"
         }
       },
       {
@@ -26,6 +26,15 @@
           "branch": null,
           "revision": "7c3dad0e918534c6d19dd1048bde734c246d05fe",
           "version": "4.0.0"
+        }
+      },
+      {
+        "package": "swift-argument-parser",
+        "repositoryURL": "https://github.com/apple/swift-argument-parser",
+        "state": {
+          "branch": null,
+          "revision": "6b2aa2748a7881eebb9f84fb10c01293e15b52ca",
+          "version": "0.5.0"
         }
       },
       {
