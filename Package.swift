@@ -27,7 +27,8 @@ let package = Package(
             name: "PracticeTLS",
             dependencies: ["Rainbow",
                            .product(name: "Socket", package: "BlueSocket"),
-                           .product(name: "Crypto", package: "swift-crypto")]),
+                           .product(name: "Crypto", package: "swift-crypto"),
+                           .product(name: "_CryptoExtras", package: "swift-crypto"),]),
         .testTarget(
             name: "PracticeTLSTests",
             dependencies: ["PracticeTLS"]),

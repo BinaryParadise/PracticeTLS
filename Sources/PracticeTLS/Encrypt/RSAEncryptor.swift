@@ -8,6 +8,10 @@
 
 import Foundation
 import Crypto
+import _CryptoExtras
+#if canImport(Security)
+import Security
+#endif
  
 /// GMJ---RSA并.p12加密解密
 public class RSAEncryptor {
@@ -69,6 +73,9 @@ public class RSAEncryptor {
     
     // 使用'.12'私钥文件解密 11
     public func encryptData(data:Data) throws -> Data {
+        #if os(Linux)
+        fatalError("RSA Encryption unsupport on linux")
+        #endif
         let keyRef = getPublicSecKey()!
         let padding = SecPadding.PKCS1
         let blockSize = SecKeyGetBlockSize(keyRef)
@@ -107,17 +114,12 @@ public class RSAEncryptor {
               return encryptedData
         
     }
-    
-    /// 使用私钥字符串解密 13
-    public func decryptData(data: [UInt8]) throws -> [UInt8] {
+        
+    func decryptData(data: [UInt8]) -> [UInt8] {
+#if os(Linux)
+        fatalError("RSA Encryption unsupport on linux")
+#endif
         let keyRef = getPrivateSecKey()!
-        return self.decryptData(data: data, keyRef: keyRef)// 16
-    }
-    
-    
-    
-    /// 16 私钥方法
-    func decryptData(data: [UInt8], keyRef:SecKey) -> [UInt8] {
         let blockSize = SecKeyGetBlockSize(keyRef)
         
         var encryptedDataAsArray = data
@@ -143,20 +145,13 @@ public class RSAEncryptor {
     }
     
     public func sign(data: [UInt8], algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256) throws -> [UInt8] {
-        let secKey = getPrivateSecKey()!
-        var error: Unmanaged<CFError>?
-        let signature = SecKeyCreateSignature(secKey, algorithm, Data(data) as CFData, &error) as? Data
-        return [UInt8](signature ?? Data())
+        let secKey = try _RSA.Signing.PrivateKey.init(pemRepresentation: privatePEM)
+        return try secKey.signature(for: data, padding: .insecurePKCS1v1_5).rawRepresentation.bytes
     }
     
     public func verify(signed: [UInt8], signature: [UInt8], algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256) throws -> Bool {
-        //半天验证不过原来是公钥错误⚠️⚠️⚠️
-        let pubSecKey = getPublicSecKey()!
-        var error: Unmanaged<CFError>?
-        let ret = SecKeyVerifySignature(pubSecKey, algorithm, Data(signed) as CFData, Data(signature) as CFData, &error)
-        if !ret {
-            print("\(error?.takeRetainedValue())")
-        }
-        return ret
+        //半天验证不过原来是公钥搞错了⚠️⚠️⚠️
+        let pubSecKey = try _RSA.Signing.PublicKey.init(pemRepresentation: publicPEM)        
+        return pubSecKey.isValidSignature(_RSA.Signing.RSASignature(rawRepresentation: signed), for: signature, padding: .insecurePKCS1v1_5)
     }
 }
