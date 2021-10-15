@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CryptoSwift
 import Crypto
 
 enum TLS1_2 {}
@@ -264,7 +263,7 @@ extension TLS1_2 {
             let isAEAD = cipherType == .aead
             let MAC = isAEAD ? [] : calculateMessageMAC(secret: MACKey, contentType: contentType, data: data)!
             let myPlantText = data + MAC
-            let recordIV = iv ?? AES.randomIV(recordIVLength)
+            let recordIV = iv ?? TLSRandomBytes(count: recordIVLength)
             let IV = (isAEAD ? fixedIV:[]) + recordIV
             do {
                 let macHeader = isAEAD ? MACHeader(contentType, dataLength: myPlantText.count) ?? [] : []

@@ -11,15 +11,6 @@
         }
       },
       {
-        "package": "CryptoSwift",
-        "repositoryURL": "https://github.com/BinaryParadise/CryptoSwift.git",
-        "state": {
-          "branch": null,
-          "revision": "b16d6ee408a363661d7b631c5b9be96a2c4f2f44",
-          "version": "1.4.2"
-        }
-      },
-      {
         "package": "Rainbow",
         "repositoryURL": "https://github.com/onevcat/Rainbow",
         "state": {

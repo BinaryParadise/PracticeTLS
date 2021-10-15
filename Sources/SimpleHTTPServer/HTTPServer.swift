@@ -210,7 +210,7 @@ extension HTTPServer: TLSConnectionDelegate {
             let request = String(bytes: data, encoding: .utf8) ?? ""
             let headers = request.components(separatedBy: "\r\n\r\n").first!.split(separator: "\r\n")
             let pri = headers.first?.appending("") ?? ""
-            if pri.contains(string: "HTTP/2.0") {
+            if pri.contains("HTTP/2.0") {
                 connection.read(tag: .frame(.SETTINGS))
             }
         case .frame(let type):
@@ -301,7 +301,7 @@ extension HTTPServer {
             .replacingOccurrences(of: "\n", with: "\r\n")
             .appending("\r\n\r\n")
         if let request = String(data: data, encoding: .utf8) {
-            if request.contains(string: "Upgrade-Insecure-Requests") {
+            if request.contains("Upgrade-Insecure-Requests") {
                 //response += "Content-Security-Policy: upgrade-insecure-requests\n"
             }
             LogInfo(request)
@@ -316,10 +316,6 @@ extension HTTPServer {
 extension TLSConnection {
     func read(tag: RWTags) {
         readApplication(tag: tag.rawValue)
-    }
-    
-    func write(_ data: Data?, tag: RWTags) {
-        write(data?.bytes, tag: tag)
     }
     
     func write(_ data: [UInt8]?, tag: RWTags) {

@@ -7,7 +7,6 @@
 
 import Foundation
 import PracticeTLS
-import CryptoSwift
 
 enum H2 {}
 

@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CryptoSwift
 import Crypto
 
 class TLSSecurityParameters {

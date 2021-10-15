@@ -7,7 +7,6 @@
 
 import Foundation
 import Crypto
-import CryptoSwift
 
 extension TLS1_3 {
     static let ivLabel  = [UInt8]("iv".utf8)

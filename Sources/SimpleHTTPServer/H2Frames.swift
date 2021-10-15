@@ -7,7 +7,7 @@
 
 import Foundation
 import PracticeTLS
-import CryptoSwift
+import Crypto
 import SwiftHpack
 
 extension H2 {
@@ -145,7 +145,7 @@ extension H2 {
             type = .DATA
             flags = [.endStream]
 
-            streamIdentifier = UInt(AES.randomIV(4).intValue & 0x7FFFFFFF)
+            streamIdentifier = UInt(TLSRandomBytes(count: 4).intValue & 0x7FFFFFFF)
 
             payload = (flags.contains(.padded) ? [padLength] : []) + data
         }

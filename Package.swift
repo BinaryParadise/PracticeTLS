@@ -15,7 +15,6 @@ let package = Package(
         .package(url: "https://github.com/Kitura/BlueSocket.git", .upToNextMinor(from: "2.0.0")),
         .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
         .package(name: "SwiftHpack", url: "https://github.com/BinaryParadise/swift-hpack.git", from: "0.1.0"),
-        .package(url: "https://github.com/BinaryParadise/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
         .package(url: "https://github.com/apple/swift-crypto.git", .upToNextMinor(from: "2.0.0")),
     ], targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -26,9 +25,9 @@ let package = Package(
                 resources: [.copy("Cert")]),
         .target(
             name: "PracticeTLS",
-            dependencies: ["Rainbow", "CryptoSwift",
-                            .product(name: "Socket", package: "BlueSocket"),
-                            .product(name: "Crypto", package: "swift-crypto")]),
+            dependencies: ["Rainbow",
+                           .product(name: "Socket", package: "BlueSocket"),
+                           .product(name: "Crypto", package: "swift-crypto")]),
         .testTarget(
             name: "PracticeTLSTests",
             dependencies: ["PracticeTLS"]),

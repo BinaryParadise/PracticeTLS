@@ -7,7 +7,7 @@
 //
 
 import Foundation
-import Security
+import Crypto
  
 /// GMJ---RSA并.p12加密解密
 public class RSAEncryptor {

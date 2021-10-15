@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CryptoSwift
 
 public var selectedCurve: NamedGroup = .x25519 //Firefox 92.0 默认支持x25519、secp256r1
 
@@ -301,7 +300,7 @@ struct KeyShareEntry: Streamable {
 }
 
 extension Data {
-    var uint8Array: [UInt8] {
+    var bytes: [UInt8] {
         return [UInt8](self)
     }
 }

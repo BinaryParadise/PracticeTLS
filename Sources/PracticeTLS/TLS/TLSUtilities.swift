@@ -153,6 +153,10 @@ public extension String {
         }
     }
     
+    var bytes: [UInt8] {
+        return data(using: .utf8)?.bytes ?? []
+    }
+    
     var uint8Array: [UInt8] {
         var result: [UInt8] = []
         var even: Bool = true

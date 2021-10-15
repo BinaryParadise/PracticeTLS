@@ -8,7 +8,6 @@
 import Foundation
 import XCTest
 import Foundation
-import CryptoSwift
 import CommonCrypto
 import Crypto
 @testable import PracticeTLS

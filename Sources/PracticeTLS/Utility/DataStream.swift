@@ -25,8 +25,8 @@ public class DataStream {
         return position >= origin.count
     }
     
-    public init(_ data: Data, offset: Int = 0) {
-        self.origin = data.bytes
+    public init(_ rawData: Data, offset: Int = 0) {
+        self.origin = rawData.bytes
         read(count: offset)
     }
     

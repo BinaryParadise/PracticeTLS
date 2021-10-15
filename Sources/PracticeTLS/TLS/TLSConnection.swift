@@ -7,7 +7,7 @@
 
 import Foundation
 import Socket
-import CryptoSwift
+import Crypto
 
 public let TLSClientFinishedLabel = [UInt8]("client finished".utf8)
 public let TLSServerFinishedLabel = [UInt8]("server finished".utf8)
@@ -74,9 +74,9 @@ public class TLSConnection {
         return record.s.hashAlgorithm.hashFunction(handshakeData)
     }
     
-    init(_ sock: TLSSocketStream) {
-        self.sock = sock
-        sessionId = AES.randomIV(16).toHexString()
+    init(_ newSocket: TLSSocketStream) {
+        self.sock = newSocket
+        sessionId = TLSRandomBytes(count: 16).toHexString()
     }
     
     func handshake() {

@@ -86,6 +86,18 @@ extension Array where Element == UInt8 {
             $0 += "0x\(s), "
         }
     }
+        
+    /// 16进制字符串
+    /// - Returns: e.g 5ce7bebe65fe2c8308e03df170fbbd38b6a440fc3939b0d8090bee4a61e738c5
+    public func toHexString() -> String {
+        `lazy`.reduce(into: "") {
+            var s = String($1, radix: 16).uppercased()
+            if s.count == 1 {
+                s = "0" + s
+            }
+            $0 += "\(s)"
+        }
+    }
     
     public func toString(_ encoding: String.Encoding = .utf8) -> String {
         return String(data: Data(self), encoding: encoding) ?? ""
