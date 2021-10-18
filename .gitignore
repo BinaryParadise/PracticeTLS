@@ -6,3 +6,4 @@ xcuserdata/
 DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 Wireshark/pre_master_secret_key.log
+release
