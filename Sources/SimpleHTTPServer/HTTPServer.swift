@@ -202,10 +202,10 @@ extension HTTPServer: TLSConnectionDelegate {
             LogInfo("GET \(path)")
             if path == "/index.css" {
                 connection.write(indexCSS(connection).bytes, tag: .http1_1)
-            } else if path == "/favicon.ico" {
-                connection.write(favicon(connection), tag: .http1_1)
-            } else {
+            } else if path == "/" {
                 connection.write(index(connection, requestHeaders: headers).bytes, tag: .http1_1)
+            } else {
+                connection.write(favicon(connection), tag: .http1_1)
             }
         case .magic:
             let request = String(bytes: data, encoding: .utf8) ?? ""
