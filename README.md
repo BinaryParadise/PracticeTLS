@@ -64,8 +64,6 @@ swift package init
 [HTTP/2 简介](https://developers.google.com/web/fundamentals/performance/http2?hl=zh-cn)
 [HTTP2 详解](https://juejin.cn/post/6844903667569541133#heading-11)
 
-## QUIC
+## 扩展阅读
 
-[本站开始支持 QUIC](https://halfrost.com/quic_start/)
-[QUIC协议详解之Initial包的处理](https://segmentfault.com/a/1190000023592802)
-[QUIC包类型和格式](https://quic.readthedocs.io/zh/latest/Packet%20Types%20and%20Formats.html)
+[SSL/TLS协议详解(上)：密码套件，哈希，加密，密钥交换算法](https://xz.aliyun.com/t/2526)
