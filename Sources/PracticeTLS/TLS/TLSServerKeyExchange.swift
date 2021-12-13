@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import _CryptoExtras
 
 enum CurveType: UInt8 {
     case named_curve = 0x03
@@ -47,9 +48,11 @@ class TLSServerKeyExchange: TLSHandshakeMessage {
         }
         params = try ECDHServerParams(pubKey)
         
+        let signPadding: _RSA.Signing.Padding = (serverHello.context?.negotiatedProtocolVersion == .V1_3) ? .PSS : .insecurePKCS1v1_5
+        
         //踩坑：想当然的以为只有pubkey需要签名⚠️⚠️⚠️
         let plantData = serverHello.client!.random.dataWithBytes()+serverHello.random.dataWithBytes()+params.dataWithBytes()
-        signedData = try TLSSignedData(hashAlgorithm: .sha256, signatureAlgorithm: .rsa, signature: RSAEncryptor.shared.sign(data: plantData))
+        signedData = try TLSSignedData(hashAlgorithm: .sha256, signatureAlgorithm: .rsa, signature: RSAEncryptor.shared.sign(data: plantData, algorithm: signPadding))
         //signedData.signature[0] = 0x0a
         super.init(.serverKeyExchange)
         nextMessage = TLSServerHelloDone()
