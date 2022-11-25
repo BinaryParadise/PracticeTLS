@@ -34,7 +34,9 @@ extension H2 {
             super.init(data)
             let stream = DataStream(payload)
             while !stream.endOfStream {
-                settings.append(Setting(identifier: .init(rawValue: stream.readUInt16()!)!, value: stream.readUInt()!))
+				if let seti = SettingIdentifier(rawValue: stream.readUInt16()!) {
+                	settings.append(Setting(identifier: seti, value: stream.readUInt()!))
+				}
             }
         }
         

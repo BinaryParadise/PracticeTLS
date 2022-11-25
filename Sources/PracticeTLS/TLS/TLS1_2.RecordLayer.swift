@@ -240,8 +240,8 @@ extension TLS1_2 {
         
         public func calculateMessageMAC(secret: [UInt8], contentType : ContentType, data : [UInt8]) -> [UInt8]?
         {
-            let MACHeader = MACHeader(contentType, dataLength: data.count) ?? []
-            return calculateMAC(secret: secret, data: MACHeader + data)
+            let macHeader = MACHeader(contentType, dataLength: data.count) ?? []
+            return calculateMAC(secret: secret, data: macHeader + data)
         }
         
         public func calculateMAC(secret : [UInt8], data : [UInt8]) -> [UInt8]? {

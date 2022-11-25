@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "PracticeTLS", targets: ["PracticeTLS"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Kitura/BlueSocket.git", .upToNextMinor(from: "2.0.0")),
+        .package(name: "Socket", url: "https://github.com/Kitura/BlueSocket.git", .upToNextMinor(from: "2.0.0")),
         .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
         .package(name: "SwiftHpack", url: "https://github.com/BinaryParadise/swift-hpack.git", from: "0.1.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", .upToNextMinor(from: "2.0.0")),
@@ -26,7 +26,7 @@ let package = Package(
         .target(
             name: "PracticeTLS",
             dependencies: ["Rainbow",
-                           .product(name: "Socket", package: "BlueSocket"),
+                           "Socket",
                            .product(name: "Crypto", package: "swift-crypto"),
                            .product(name: "_CryptoExtras", package: "swift-crypto"),]),
         .testTarget(
