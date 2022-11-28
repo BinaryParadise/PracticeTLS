@@ -156,10 +156,18 @@ public class TLSConnection {
 
 extension TLSConnection {
     func socket(didRead data: [UInt8], withTag tag: RWTags) {
+		print("\(data.toHexString())")
         //处理粘包
         let stream = DataStream(data)
         while !stream.endOfStream {
-            stream.read(count: 3)
+            if let head = stream.read(count: 3) {
+				print(head)
+				if head == [0x47, 0x45, 0x54] {
+					//GET 请求升级
+					TLSSessionManager.shared.delegate?.didReadApplication(data, connection: self, tag: 110)
+					break;
+				}
+			}
             let length = stream.readUInt16() ?? 0
             stream.position -= 5
             let rawData = stream.read(count: UInt16(5 + length)) ?? []

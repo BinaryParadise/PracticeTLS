@@ -83,37 +83,50 @@ public class HTTPServer: NSObject {
     }
     
     func index(_ connection: TLSConnection, requestHeaders: String, h2: Bool = false) -> String {
-        let content = """
-        <!DOCTYPE html>
-        <html lang="en">
-        <title>Practice TLS</title>
-        <meta charset="utf-8">
-        <link rel="stylesheet" href="index.css">
-        <body>
-        <pre>
-        Date: \(Date())
-        Connection from: \(connection.connectedHost)
-        TLS Version: \(connection.negotiatedProtocolVersion.description)
-        Cipher Suite: \(connection.cipherSuite)
-        
-        Your Request:
-        \(requestHeaders)
-        
-        </pre>
-        </body></html>
-        """
-        
-        if h2 {
-            return content
-        }
-        var response = ["HTTP/1.1 200 OK"]
-        response.append("Content-Length: \(content.bytes.count)")
-        response.append("Connection: keep-alive")
-        response.append("Content-Type: text/html; charset=utf-8")
-        response.append("Server: PracticeTLS")
-        return response.joined(separator: "\r\n")
+		var insecure = requestHeaders.contains("Upgrade-Insecure-Requests")                		
+		if insecure {			
+			var response = ["HTTP/1.1 308 Permanent Redirect"]
+			response.append("Connection: close")
+        	response.append("Content-Length: 0")
+			var host = requestHeaders.split(separator: "\r\n").filter { (item) -> Bool in
+				return item.hasPrefix("Host:")
+			}.first ?? ""		
+			response.append("Location: https://\(host.split(separator: " ")[1])/")
+        	response.append("Server: PracticeTLS/0.1.0")
+        	return response.joined(separator: "\r\n")		
+		} else {
+			let content = insecure ? "" : """
+				<!DOCTYPE html>
+				<html lang="en">
+				<title>Practice TLS</title>
+				<meta charset="utf-8">
+				<link rel="stylesheet" href="index.css">
+				<body>
+				<pre>
+				Date: \(Date())
+				Connection from: \(connection.connectedHost)
+				TLS Version: \(connection.negotiatedProtocolVersion.description)
+				Cipher Suite: \(connection.cipherSuite)
+
+				Your Request:
+				\(requestHeaders)
+
+				</pre>
+				</body></html>
+				"""
+
+			if h2 {
+				return content
+			}
+			var response = ["HTTP/1.1 200 OK"]
+			response.append("Connection: keep-alive")			
+			response.append("Content-Type: text/html; charset=utf-8")
+        	response.append("Content-Length: \(content.bytes.count)")
+        	response.append("Server: PracticeTLS/0.1.0")
+        	return response.joined(separator: "\r\n")
             .appending("\r\n\r\n")
             .appending(content)
+		}
     }
     
     func favicon(_ connection: TLSConnection, h2: Bool = false) -> [UInt8] {
